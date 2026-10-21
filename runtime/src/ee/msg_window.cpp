@@ -100,11 +100,15 @@ extern "C" void hook_glyph_quad(EEContext* c) {
 // S+40/+44 = top-left of the box (512x448), S+676 = the main module's text box (content size +212,
 // +216, 6 px border around it, name plate above). It draws in immediate mode: all its primitives go
 // out through 0x166780 (type, vertex count, vertices of 24 bytes: float x, y, z, colour, float u, v),
-// so they are scaled there around the box corner nearest to the screen edges.
+// so they are scaled there around the box corner nearest to the screen edges - only from the text box
+// draw (0x19DC90) on: the tutorial's dimming mask with its spotlight is drawn before it.
 extern "C" void battle_0032B900(EEContext* c);
 extern "C" void ee_00166780(EEContext* c);
-static bool g_bm_on = false;
+extern "C" void ee_0019DC90(EEContext* c);
+static bool g_bm_pending = false;  // inside the battle message draw, before its text box
+static bool g_bm_on = false;       // from the text box on (its last glyphs go out in the final flush)
 static float g_bm_k = 1.0f, g_bm_ax = 0, g_bm_ay = 0;
+static float g_bm_x0, g_bm_y0, g_bm_x1, g_bm_y1;  // the box with its name plate (unscaled)
 
 extern "C" void hook_battle_msg_draw(EEContext* c) {
     float k = platform::text_scale();
@@ -116,20 +120,35 @@ extern "C" void hook_battle_msg_draw(EEContext* c) {
             g_bm_k = k;
             g_bm_ax = (x0 + x1) * 0.5f < 256.0f ? x0 : x1;
             g_bm_ay = (y0 + y1) * 0.5f > 224.0f ? y1 : y0;
-            g_bm_on = true;
+            g_bm_x0 = x0 - 12.0f;
+            g_bm_y0 = y0 - 40.0f;
+            g_bm_x1 = x1 + 12.0f;
+            g_bm_y1 = y1 + 12.0f;
+            g_bm_pending = true;
         }
     }
     battle_0032B900(c);
-    g_bm_on = false;
+    g_bm_pending = g_bm_on = false;
+}
+
+// the main module's text box draw: in the battle message (after its dimming mask) scaling starts here
+extern "C" void hook_textbox_draw(EEContext* c) {
+    if (g_bm_pending) g_bm_on = true;
+    ee_0019DC90(c);
 }
 
 extern "C" void hook_prim_submit(EEContext* c) {
     if (g_bm_on) {
+        // triangles of the box (centre inside it); the tutorial's dimming tiles around it stay
         u32 n = c->r[5].uw[0], p = c->r[6].uw[0];
-        if (n < 65536 && p && p < 0x2000000 - n * 24)
-            for (u32 i = 0; i < n; i++, p += 24) {
-                wrf(p, g_bm_ax + (rdf(p) - g_bm_ax) * g_bm_k);
-                wrf(p + 4, g_bm_ay + (rdf(p + 4) - g_bm_ay) * g_bm_k);
+        if (n < 65536 && n % 3 == 0 && p && p < 0x2000000 - n * 24)
+            for (u32 t = 0; t < n; t += 3, p += 72) {
+                float cx = (rdf(p) + rdf(p + 24) + rdf(p + 48)) / 3.0f, cy = (rdf(p + 4) + rdf(p + 28) + rdf(p + 52)) / 3.0f;
+                if (cx < g_bm_x0 || cx > g_bm_x1 || cy < g_bm_y0 || cy > g_bm_y1) continue;
+                for (u32 q = p; q < p + 72; q += 24) {
+                    wrf(q, g_bm_ax + (rdf(q) - g_bm_ax) * g_bm_k);
+                    wrf(q + 4, g_bm_ay + (rdf(q + 4) - g_bm_ay) * g_bm_k);
+                }
             }
     }
     ee_00166780(c);

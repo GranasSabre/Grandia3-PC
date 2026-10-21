@@ -77,7 +77,8 @@
   "0x00120F80": "hook_printf_b",
   "0x0012E050": "hook_mpeg_error",
     "0x00145440": "hook_wait_vsync",
-    "0x00166780": "hook_prim_submit"
+    "0x00166780": "hook_prim_submit",
+    "0x0019DC90": "hook_textbox_draw"
  },
  "idle_loops": {
   "0x00145858": {"module": "main", "note": "frame end: waits for the GS FINISH interrupt (flag 0x700006AE, set by the GS handler 0x1453A0)"}

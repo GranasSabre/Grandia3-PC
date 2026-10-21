@@ -29,7 +29,9 @@
 #include <cstring>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
+#include <map>
 
 namespace gs {
 namespace gpu {
@@ -1482,10 +1484,22 @@ static inline GV mkv(const DrawState& ds, const Vertex& v, const Vertex& flat) {
 // drawn into a displayed frame buffer are narrowed to their 4:3 proportions around the screen center.
 // Full-width layers (backgrounds, fades, screen filters) keep the full width.
 static u64 st_hud = 0;
+struct HudSpan { int x0 = 1 << 30, x1 = -(1 << 30), width = 0; };
+static std::unordered_map<u32, HudSpan> g_hud_span;  // this frame: x range of the 2D pieces per texture
+static std::unordered_set<u32> g_hud_fullwidth;       // textures whose pieces spanned the width last frame
+static void hud_frame_end() {
+    g_hud_fullwidth.clear();
+    for (auto& [k, s] : g_hud_span)
+        if (s.width > 0 && s.x0 <= 4 * 16 && s.x1 >= (s.width - 4) * 16) g_hud_fullwidth.insert(k);
+    g_hud_span.clear();
+}
 static bool hud_transform(const DrawState& ds, int prim, const Vertex* v, Vertex* out) {
     const platform::Config& cfg = platform::config();
     if (!cfg.widescreen_hack || !cfg.hud_fix) return false;
     if (ds.fbp != g_display_fbp[0] && ds.fbp != g_display_fbp[1]) return false;
+    // screen effects (blur, depth of field, dimming in battles) sample the rendered picture, often in
+    // column strips: they keep the full width; menus and text use uploaded textures
+    if (ds.tme && !g_shadow_ok[ds.tbp & 16383]) return false;
     int n = prim == 3 ? 3 : prim == 0 ? 1 : 2;
     if (ds.zte && ds.ztst != 1) return false;
     int minx = v[0].x, maxx = v[0].x, miny = v[0].y, maxy = v[0].y;
@@ -1501,10 +1515,23 @@ static bool hud_transform(const DrawState& ds, int prim, const Vertex* v, Vertex
     if (maxx - minx >= (width - 24) * 16) return false;  // full-width layer
     // full-height strips: clears and backgrounds drawn in columns
     if (maxy - miny >= 400 * 16) return false;
+    // layers made of many small pieces that together span the whole width (the battle tutorial's
+    // dimming mask with a spotlight hole around the HUD): learned per texture from the previous frame.
+    // They are narrowed like the HUD (the hole follows it) but their outer edges stay at the frame
+    // edges, so the layer still covers the whole picture. (key: texture, its size, and whether the
+    // pieces are black - the mask shares an atlas with coloured glows of the HUD)
+    bool black = v[0].r == 0 && v[0].g == 0 && v[0].b == 0;
+    u32 key = (ds.tme ? (ds.tbp & 16383) : 0x3FFFu) | (ds.tw & 15) << 14 | (ds.th & 15) << 18 | (black ? 1u << 22 : 0);
+    HudSpan& sp = g_hud_span[key];
+    sp.x0 = std::min(sp.x0, minx);
+    sp.x1 = std::max(sp.x1, maxx);
+    sp.width = width;
+    bool pin_edges = g_hud_fullwidth.count(key) != 0;
     int cx = width * 8;  // center in 12.4 fixed point
     float hf = platform::hud_factor();
     for (int i = 0; i < n; i++) {
         out[i] = v[i];
+        if (pin_edges && (v[i].x <= 4 * 16 || v[i].x >= (width - 4) * 16)) continue;
         out[i].x = cx + (int)lrintf((v[i].x - cx) * hf);
     }
     st_hud++;
@@ -1773,6 +1800,7 @@ void on_present(const PresentParams& p, const u32* sw_frame) {
         }
     }
     g_frame++;
+    hud_frame_end();
     if (g_frame % 600 == 0) evict_textures();
     evict_reps();
     bool en1 = p.pmode & 1, en2 = (p.pmode >> 1) & 1;
