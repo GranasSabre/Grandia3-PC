@@ -1,0 +1,97 @@
+{
+ "hle": {
+  "0x00112C58": "hle_ret0",
+  "0x00113230": "hle_ret0",
+  "0x00112E78": "hle_ret0",
+  "0x001123A8": "hle_ret0"
+ },
+ "extra_entries": {},
+ "patches": {
+  "widescreen": {
+   "index": 0,
+   "module": "main",
+   "source": "PCSX2 pcsx2_patches SLUS-21334_5B657DAD.pnach (nemesis2000)",
+   "words": {
+    "0013B450": "3c033f27",
+    "0013B4A0": "3c013f40",
+    "0013B4A4": "4481a000",
+    "0013B4A8": "46146d83",
+    "0013B4AC": "46007546",
+    "0013B4B0": "46007e86"
+   }
+  },
+  "widescreen_1610": {
+  "index": 4,
+  "module": "main",
+  "source": "own: the widescreen patch for 16:10 screens (Steam Deck): field of view factor 0.5 * 1.18 (vertical view as in 4:3) and aspect x 0.833 instead of 1.30 / 0.75",
+  "words": {
+   "0013B450": "3c033f17",
+   "0013B4A0": "3c013f55",
+   "0013B4A4": "4481a000",
+   "0013B4A8": "46146d83",
+   "0013B4AC": "46007546",
+   "0013B4B0": "46007e86"
+  }
+ },
+ "letterbox_field": {
+   "index": 1,
+   "module": "field",
+   "source": "PCSX2 pnach: cutscenes black borders fix (optional)",
+   "words": {
+    "002A8578": "24030000"
+   },
+   "expect": {
+    "002A8578": "24030001"
+   }
+  },
+  "letterbox_battle": {
+   "index": 2,
+   "module": "battle",
+   "source": "PCSX2 pnach: battle black borders fix (optional)",
+   "words": {
+    "0032CEF8": "24030000"
+   },
+   "expect": {
+    "0032CEF8": "24030010"
+   }
+  },
+  "movie_skip": {
+   "index": 3,
+   "module": "field",
+   "source": "own: every field movie takes the skippable path, skipped with START or SELECT (not X/circle)",
+   "words": {
+    "00249280": "24020001",
+    "002492A4": "30620800",
+    "002492AC": "30620800"
+   },
+   "expect": {
+    "00249280": "8e820034",
+    "002492A4": "30620020",
+    "002492AC": "30620040"
+   }
+  }
+ },
+ "hooks": {
+  "0x001DA6A0": "hook_msg_open",
+  "0x0010C480": "hook_printf_a",
+  "0x00120F80": "hook_printf_b",
+  "0x0012E050": "hook_mpeg_error",
+    "0x00145440": "hook_wait_vsync",
+    "0x00166780": "hook_prim_submit"
+ },
+ "idle_loops": {
+  "0x00145858": {"module": "main", "note": "frame end: waits for the GS FINISH interrupt (flag 0x700006AE, set by the GS handler 0x1453A0)"}
+ },
+ "module_hooks": {
+  "field": {
+   "0x002A8400": "hook_field_cinema",
+   "0x002615F0": "hook_scene_skip_enabled",
+   "0x002A11F0": "hook_msg_window",
+   "0x002A0400": "hook_msg_text",
+   "0x0027A270": "hook_glyph_quad"
+  },
+  "battle": {
+   "0x0032B900": "hook_battle_msg_draw"
+  }
+ }
+}

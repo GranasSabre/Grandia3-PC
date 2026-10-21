@@ -1,0 +1,85 @@
+Grandia III für PC (Grandia3-PC)
+================================
+
+Eine native Windows-Fassung von Grandia III (PlayStation 2), entstanden durch statische Rekompilierung:
+Das Programm des Spiels wurde vorab in PC-Code übersetzt. Zur Laufzeit wird nichts interpretiert; das
+Spiel läuft wie ein PC-Spiel, mit hoher Auflösung, Widescreen, 60 fps, Savestates und mehr.
+
+Spieldaten sind nicht enthalten. Du brauchst deine eigene Grandia III (USA): Abbilder (ISO) von Disc 1
+und später Disc 2. Das Programm liest sie, wie sie sind; nichts wird kopiert oder verändert.
+
+Ein Fanprojekt, ohne Verbindung zu Square Enix oder Game Arts.
+
+
+Voraussetzungen
+---------------
+- Windows 10/11 (64 Bit) mit einer Direct3D-11.3-fähigen Grafikkarte, oder Steam Deck / Linux mit Proton
+- Abbilder von Grandia III (USA), z. B. "Grandia III (USA) (Disc 1).iso" und "(Disc 2).iso"
+
+
+Installation
+------------
+1. Archiv in einen eigenen Ordner entpacken.
+2. Grandia3.exe starten.
+3. Beim ersten Start fragt das Programm nach dem Abbild deiner Disc 1; die .iso-Datei auswählen.
+   Der Pfad wird in grandia3.ini gespeichert, danach startet das Spiel direkt.
+
+Disc 2 wie auf der Konsole: am Ende von Disc 1 speichern, im F1-Menü "Disc wechseln" wählen. Das Spiel
+startet mit Disc 2 neu (fragt einmal nach deren Abbild); dort den Spielstand laden.
+
+Spielstände liegen im Ordner "memcards" (PS2-Speicherkarten), Savestates in "savestates".
+
+
+Sprache
+-------
+Standard ist Englisch (Originaltext). Deutsch: im F1-Menü "Language" auf "Deutsch" stellen (oder in
+grandia3.ini: language = de). Die Menüs wechseln sofort, die Spieltexte beim nächsten Start.
+
+
+Steam Deck
+----------
+- Ordner aufs Deck kopieren, Grandia3.exe in Steam als "Nicht-Steam-Spiel" hinzufügen und unter
+  Eigenschaften > Kompatibilität Proton einstellen.
+- Das Deck wird automatisch erkannt: Beim ersten Start gibt es eine echte 16:10-Widescreen-Ansicht,
+  Vollbild und große Dialogfenster.
+- Bedienung: Ansicht + Menü = Einstellungsmenü, Ansicht + R1 = Savestate speichern, Ansicht + L1 = laden.
+- Auf echter Deck-Hardware ist die Leistung noch nicht gemessen. Schafft eine Szene keine 60 fps,
+  schaltet das Spiel dort von selbst auf seine eigenen 30 fps zurück.
+
+
+Tasten
+------
+F1 / Back+Start   Einstellungsmenü (das Spiel pausiert)
+F3                60 fps ein/aus
+F4                Nachschärfen ein/aus
+F5 / Back+R1      Savestate speichern (Slot im F1-Menü)
+F9 / Back+L1      Savestate laden
+F6                Widescreen ein/aus
+F7                Bildrate anzeigen (links oben im Bild)
+F8                HD-Texturen ein/aus (falls ein Texturpaket installiert ist)
+F11, Alt+Enter    Vollbild
+Tab (halten)      Schneller Vorlauf
+
+Tastatur (Standard, im Einstellungsfenster änderbar): Pfeiltasten = Steuerkreuz, Umschalt + Pfeile =
+Rennen, S = Kreuz, D = Kreis, A = Quadrat, W = Dreieck, Q/E = L1/R1, 1/3 = L2/R2, Enter = Start,
+Rücktaste = Select. Controller (XInput) funktionieren direkt, mit Vibration.
+
+
+Funktionen
+----------
+- Interne Auflösung bis 8-fach (automatisch passend zur Bildschirmhöhe)
+- Widescreen: echte 16:9- oder 16:10-Ansicht; Menüs und Texte behalten ihr 4:3-Format
+- 60 fps im Feld und (wahlweise) in Kämpfen, bei richtiger Spielgeschwindigkeit
+- Savestates (9 Slots) überall, auch im Kampf und in Zwischensequenzen
+- Zwischensequenzen und Filme mit START überspringen
+- Große Dialogfenster (1,25-fach samt Schrift) für kleine Bildschirme, auf dem Steam Deck automatisch
+  (braucht die Widescreen-Ansicht)
+- Scharfe Schrift bei hoher Auflösung, Nachschärfen, Bildfilter
+- Getrennte Lautstärke für Musik, Sprache, Effekte und Filme
+- HD-Texturpakete: Bilder im Ordner "textures" neben dem Programm ersetzen die Texturen des Spiels
+  (ein Paket ist nicht Teil dieses Releases)
+
+
+Probleme?
+---------
+Das Programm schreibt grandia3.log neben sich. Bitte bei Fehlerberichten anhängen.

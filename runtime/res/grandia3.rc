@@ -1,0 +1,3 @@
+// Application resources: icon, manifest (common controls 6, per-monitor DPI awareness)
+1 ICON "grandia3.ico"
+1 24 "grandia3.manifest"

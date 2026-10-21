@@ -1,0 +1,25 @@
+# code generated from the game disc, game data, build output
+generated/
+extracted/
+build/
+toolchain/
+release/
+vu_new/
+*.iso
+*.bin
+*.elf
+# runtime files next to the program
+data/
+textures/
+texdump/
+memcards/
+savestates/
+shadercache/
+grandia3.ini
+grandia3.log
+perf_*.txt
+# tools
+__pycache__/
+*.pyc
+build*.ninja
+.ninja_*
