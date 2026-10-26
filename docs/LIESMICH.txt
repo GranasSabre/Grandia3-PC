@@ -87,7 +87,10 @@ Funktionen
   Szenen folgen. Schalter: F1-Menü "Untertitel in Zwischensequenzen" (grandia3.ini: subtitles).
   Fehler wie falsches Timing oder falsche/fehlende Zeilen bitte melden.
 - HD-Texturpakete: Bilder im Ordner "textures" neben dem Programm ersetzen die Texturen des Spiels
-  (ein Paket ist nicht Teil dieses Releases)
+  (nicht in diesem Archiv). Ein inoffizielles 4x-Paket (7,5 GB, zwei Teile - beide neben die exe
+  entpacken):
+  https://mega.nz/file/HsAA1ZJI#XaEf7ifCbabg8oY0FB5-TBd1A7-65ooXDTEMhyZIy5U
+  https://mega.nz/file/C9JmECLB#aYbkB_SHfTTdox-uphb7gvy9ABdE9py6nxQxjE7xhjk
 
 
 Probleme?

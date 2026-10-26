@@ -19,6 +19,12 @@ is found without a file dialog (handy on the Steam Deck). Details, keys and sett
 
 Works on Windows 10/11 (Direct3D 11.3 graphics card) and on the Steam Deck / Linux with Proton.
 
+**Optional HD texture pack (4x, unofficial, separate download, 7.5 GB):**
+[part 1](https://mega.nz/file/HsAA1ZJI#XaEf7ifCbabg8oY0FB5-TBd1A7-65ooXDTEMhyZIy5U) and
+[part 2](https://mega.nz/file/C9JmECLB#aYbkB_SHfTTdox-uphb7gvy9ABdE9py6nxQxjE7xhjk) - unzip both into the folder
+of `Grandia3.exe` so that a `textures` folder sits next to it; F8 switches the textures on and off. It only
+works with this port, not with PCSX2.
+
 ## Features
 
 - Internal resolution up to 8x, automatic choice for your screen

@@ -83,7 +83,9 @@ Features
 - Language: the original English text, or German (complete translation). More languages can be added
   as lang\<code>.tsv files.
 - HD texture packs: images in a folder "textures" next to the program replace the game's textures
-  (a pack is not part of this release)
+  (not part of this archive). An unofficial 4x pack (7.5 GB, two parts - unzip both next to the exe):
+  https://mega.nz/file/HsAA1ZJI#XaEf7ifCbabg8oY0FB5-TBd1A7-65ooXDTEMhyZIy5U
+  https://mega.nz/file/C9JmECLB#aYbkB_SHfTTdox-uphb7gvy9ABdE9py6nxQxjE7xhjk
 
 
 Settings (grandia3.ini)
