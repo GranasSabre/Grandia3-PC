@@ -29,6 +29,7 @@ const u32* memory();                   // the renderer's copy of local memory
 void state_vram(u8* vram, u32* clut, bool load);  // savestates (4 MB VRAM, 512 CLUT entries)
 std::string stats();
 extern bool g_hd_ab;
+extern double g_hud_log_at;              // --hud-log=SEC: log the 2D pieces per texture for a few frames
 extern bool g_sharpen_ab;              // --sharpen-ab: window screenshot pairs with sharpening on and off                   // --hd-ab: screenshot pairs with HD textures on and off
 }  // namespace gpu
 }  // namespace gs

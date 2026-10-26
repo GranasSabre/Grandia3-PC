@@ -28,7 +28,8 @@ works with this port, not with PCSX2.
 ## Features
 
 - Internal resolution up to 8x, automatic choice for your screen
-- Widescreen: a real 16:9 or 16:10 view of the 3D scenes, menus and text keep their 4:3 proportions
+- Widescreen: a real 16:9 or 16:10 view of the 3D scenes, or ultrawide in the shape of the screen
+  (21:9, 32:9); menus and text keep their 4:3 proportions
 - 60 fps in the field and (optionally) in battles at correct game speed, automatic fallback to 30
 - Savestates everywhere (9 slots), skippable cutscenes and movies
 - Large dialogue windows for small screens (Steam Deck: automatic), sharp text, sharpening, filters

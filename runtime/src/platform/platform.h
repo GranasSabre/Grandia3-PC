@@ -19,7 +19,8 @@ struct Config {
     int window_height = 960;
     bool fullscreen = false;
     bool vsync = true;
-    int aspect = 0;          // 0 = 4:3, 1 = 16:9 (stretch for widescreen hack), 2 = stretch to window, 3 = 16:10 (Steam Deck)
+    int aspect = 0;          // 0 = 4:3, 1 = 16:9 (stretch for widescreen hack), 2 = stretch to window, 3 = 16:10 (Steam Deck),
+                             // 4 = shape of the window (ultrawide: the widescreen view follows it)
     int filter = 1;          // 0 = nearest, 1 = bilinear, 2 = sharp bilinear
     int internal_scale = 0;  // GPU renderer: internal resolution multiplier (0 = automatic from the screen height)
     int renderer = 1;        // 1 = GPU (Direct3D 11.3), 0 = software
@@ -76,6 +77,7 @@ extern bool g_force_steam_deck;  // --steamdeck
 bool big_text_active();   // option big_text in effect (needs widescreen)
 float text_scale();       // conversation window scale in effect (1 when off)
 void apply_patches();     // optional game code patches from the settings (widescreen 16:9 / 16:10)
+float view_aspect();      // aspect ratio of the widescreen 3D view (16:9, 16:10 or the window's)
 float hud_factor();       // widescreen with 4:3 menus: horizontal factor of 2D elements (3/4, 5/6 for 16:10)
 void load_config(const std::string& path);
 void save_config();

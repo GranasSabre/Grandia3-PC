@@ -42,6 +42,7 @@ static ID3D11Device* dev = nullptr;
 static ID3D11DeviceContext* ctx = nullptr;
 static u32* shadow = nullptr;
 static bool g_texrep_on = false;   // HD textures: dumping, or a texture pack exists
+double g_hud_log_at = 0;
 bool g_hd_ab = false;              // --hd-ab: screenshot pairs with HD textures on/off
 static int g_last_ow = 0, g_last_oh = 0;  // size of the last presented picture (re-present)
 bool g_sharpen_ab = false;         // --sharpen-ab: window screenshot pairs with sharpening on/off
@@ -1484,10 +1485,19 @@ static inline GV mkv(const DrawState& ds, const Vertex& v, const Vertex& flat) {
 // drawn into a displayed frame buffer are narrowed to their 4:3 proportions around the screen center.
 // Full-width layers (backgrounds, fades, screen filters) keep the full width.
 static u64 st_hud = 0;
-struct HudSpan { int x0 = 1 << 30, x1 = -(1 << 30), width = 0; };
+struct HudSpan { int x0 = 1 << 30, x1 = -(1 << 30), width = 0, y0 = 1 << 30, y1 = -(1 << 30), n = 0; };
 static std::unordered_map<u32, HudSpan> g_hud_span;  // this frame: x range of the 2D pieces per texture
 static std::unordered_set<u32> g_hud_fullwidth;       // textures whose pieces spanned the width last frame
 static void hud_frame_end() {
+    static int log_frames = 0;
+    if (g_hud_log_at > 0 && host_time_sec() >= g_hud_log_at) { g_hud_log_at = host_time_sec() + 3.0; log_frames = 1; }
+    if (log_frames > 0) {
+        log_frames--;
+        log_write(LOG_GS, "hud frame %llu: %zu textures", (unsigned long long)g_frame, g_hud_span.size());
+        for (auto& [k, s] : g_hud_span)
+            log_write(LOG_GS, "hud key %06x tbp %04x tw %u th %u%s n %d x %d..%d y %d..%d", k, k & 0x3FFF, (k >> 14) & 15, (k >> 18) & 15,
+                      (k >> 22) & 1 ? " black" : "", s.n, s.x0 >> 4, s.x1 >> 4, s.y0 >> 4, s.y1 >> 4);
+    }
     g_hud_fullwidth.clear();
     for (auto& [k, s] : g_hud_span)
         if (s.width > 0 && s.x0 <= 4 * 16 && s.x1 >= (s.width - 4) * 16) g_hud_fullwidth.insert(k);
@@ -1525,6 +1535,9 @@ static bool hud_transform(const DrawState& ds, int prim, const Vertex* v, Vertex
     HudSpan& sp = g_hud_span[key];
     sp.x0 = std::min(sp.x0, minx);
     sp.x1 = std::max(sp.x1, maxx);
+    sp.y0 = std::min(sp.y0, miny);
+    sp.y1 = std::max(sp.y1, maxy);
+    sp.n++;
     sp.width = width;
     bool pin_edges = g_hud_fullwidth.count(key) != 0;
     int cx = width * 8;  // center in 12.4 fixed point

@@ -72,6 +72,7 @@
   }
  },
  "hooks": {
+  "0x0013B450": "hook_projection",
   "0x001DA6A0": "hook_msg_open",
   "0x0010C480": "hook_printf_a",
   "0x00120F80": "hook_printf_b",

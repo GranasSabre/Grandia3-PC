@@ -256,7 +256,7 @@ static void build_controls() {
                      L"5x  (2560 x 2240)", L"6x  (3072 x 2688)", L"8x  (4096 x 3584)"},
                     sc);
     label(24, 100, 120, tr(L"Seitenverhältnis:"));
-    g_aspect = combo(150, 98, 180, ID_ASPECT, {L"4:3", L"16:9", tr(L"Fenster füllen"), L"16:10 (Steam Deck)"}, c.aspect);
+    g_aspect = combo(150, 98, 180, ID_ASPECT, {L"4:3", L"16:9", tr(L"Fenster füllen"), L"16:10 (Steam Deck)", tr(L"Bildschirm (Ultrawide)")}, c.aspect);
     label(24, 132, 120, tr(L"Bildfilter:"));
     g_filter = combo(150, 130, 180, ID_FILTER, {tr(L"Pixel (scharf)"), tr(L"Bilinear (weich)"), tr(L"Scharf-bilinear")}, c.filter);
     g_ws = check(24, 166, 310, ID_WIDESCREEN, tr(L"Widescreen (Taste F6)"), c.widescreen_hack);

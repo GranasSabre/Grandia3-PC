@@ -223,6 +223,7 @@ int main(int argc, char** argv) {
         else if (a == "--hd-ab") gs::gpu::g_hd_ab = true;
         else if (a == "--sharpen-ab") gs::gpu::g_sharpen_ab = true;
         else if (a == "--shots-final") platform::g_shots_final = true;
+        else if (a.rfind("--hud-log=", 0) == 0) gs::gpu::g_hud_log_at = atof(a.c_str() + 10);
         else if (a.rfind("--sharpen=", 0) == 0) cfg.sharpen = atoi(a.c_str() + 10);
         else if (a.rfind("--hd-lod-bias=", 0) == 0) cfg.hd_lod_bias = (float)atof(a.c_str() + 14);
         else if (a.rfind("--window-shot=", 0) == 0) platform::g_overlay_shot_at = atof(a.c_str() + 14);  // the window picture with overlays

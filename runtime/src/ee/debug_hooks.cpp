@@ -89,6 +89,22 @@ extern "C" void hook_field_cinema(EEContext* c) {
     if (lb) mem::wr32(0x218C88, 0);
 }
 
+// Camera projection setup (f12 horizontal field of view in degrees, f13 aspect, f14/f15 near/far).
+// Widescreen in the shape of the window (aspect 4, e.g. 21:9): the horizontal view widens by the
+// window's ratio to 4:3 and the vertical view stays as in 4:3. The fixed patches 0/4 do the same
+// with constants for 16:9 and 16:10.
+extern "C" void ee_0013B450(EEContext* c);
+extern "C" void hook_projection(EEContext* c) {
+    const platform::Config& cfg = platform::config();
+    if (cfg.widescreen_hack && cfg.aspect == 4) {
+        const float half_rad = 3.14159265f / 360.0f;  // degrees of the full angle -> radians of the half
+        float r = platform::view_aspect() * 0.75f;
+        c->fpr[12].f = atanf(tanf(c->fpr[12].f * half_rad) * r) / half_rad;
+        c->fpr[13].f *= r;
+    }
+    ee_0013B450(c);
+}
+
 
 // Game flags (bit array at *(*(0x219520) + 4), as the game's get/set flag functions use it)
 extern "C" int game_flag(int n) {

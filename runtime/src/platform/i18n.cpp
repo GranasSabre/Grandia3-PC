@@ -35,6 +35,7 @@ static const wchar_t* const TEXTS[][2] = {
     {L"Scharf-weich", L"Sharp-smooth"},
     {L"Seitenverhältnis", L"Aspect ratio"},
     {L"Fenster füllen", L"Fill window"},
+    {L"Bildschirm (Ultrawide)", L"Screen (ultrawide)"},
     {L"Vollbild", L"Fullscreen"},
     {L"Bildrate anzeigen", L"Show frame rate"},
     {L"Interne Auflösung (ab Neustart)", L"Internal resolution (after restart)"},

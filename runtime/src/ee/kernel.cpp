@@ -53,7 +53,7 @@ static void frame_rate_option() {
     u8& game_rate = g_fr_game_rate;
     bool& forced = g_fr_forced;
     u8& rate = mem::ram[0x1EBAD8];     // FrameRate
-    u8& request = mem::ram[0x2189E8];  // pending SetFrameRate value (0 = none)
+    u8& request = mem::ram[0x218AE8];  // pending SetFrameRate value (0 = none; SetFrameRate 0x1AD380 stores it)
     if (request) game_rate = request;
     // battles keep the game's own rate (their timing was only checked in the field)
     bool battle = battle_loaded();  // every vertical blank (also feeds battle_running())
@@ -100,6 +100,11 @@ static void frame_rate_option() {
     } else if (forced) {
         if (game_rate) rate = game_rate;
         forced = false;
+    }
+    static u8 logged = 0;
+    if (rate != logged) {
+        log_write(LOG_KERNEL, "frame rate %d -> %d (game %d%s)", logged, rate, game_rate, forced ? ", 60 fps option" : "");
+        logged = rate;
     }
 }
 static double g_next_vblank_e = FIELD_PERIOD + VBLANK_LEN;
@@ -676,6 +681,7 @@ static void update_time() {
             double h = host_time_sec();
             g_speed = limit == 2 ? 100.0 : limit ? 1.0 : 4.0;
             g_time_base = h - g_emu_time / g_speed;
+            log_write(LOG_KERNEL, "game speed x%.0f (%s)", g_speed, limit == 2 ? "cutscene skip" : limit ? "normal" : "fast forward");
         }
     }
     double host = host_time_sec() - g_time_base;

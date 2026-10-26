@@ -74,7 +74,8 @@ Rücktaste = Select. Controller (XInput) funktionieren direkt, mit Vibration.
 Funktionen
 ----------
 - Interne Auflösung bis 8-fach (automatisch passend zur Bildschirmhöhe)
-- Widescreen: echte 16:9- oder 16:10-Ansicht; Menüs und Texte behalten ihr 4:3-Format
+- Widescreen: echte 16:9- oder 16:10-Ansicht oder Ultrawide (21:9, 32:9: Seitenverhältnis
+  "Bildschirm"); Menüs und Texte behalten ihr 4:3-Format
 - 60 fps im Feld und (wahlweise) in Kämpfen, bei richtiger Spielgeschwindigkeit
 - Savestates (9 Slots) überall, auch im Kampf und in Zwischensequenzen
 - Zwischensequenzen und Filme mit START überspringen

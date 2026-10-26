@@ -105,11 +105,19 @@ bool is_steam_deck() {
 std::string steam_deck_info() { return is_steam_deck() ? "yes (" + g_deck_why + ")" : "no"; }
 
 void apply_patches() {
-    g_ee_patch[0] = g_cfg.widescreen_hack;
+    g_ee_patch[0] = g_cfg.widescreen_hack && g_cfg.aspect != 4;  // aspect 4: hook_projection instead
     g_ee_patch[4] = g_cfg.widescreen_hack && g_cfg.aspect == 3;  // 16:10 variant (wins over patch 0)
 }
 
-float hud_factor() { return g_cfg.aspect == 3 ? 5.0f / 6.0f : 0.75f; }
+static std::atomic<float> g_win_aspect{16.0f / 9.0f};  // client area of the window, set by draw_present
+
+float view_aspect() {
+    if (g_cfg.aspect == 3) return 16.0f / 10.0f;
+    if (g_cfg.aspect == 4) return std::max(g_win_aspect.load(), 4.0f / 3.0f);
+    return 16.0f / 9.0f;
+}
+
+float hud_factor() { return 4.0f / 3.0f / view_aspect(); }
 
 std::string choose_disc_image(int disc) {
     wchar_t file[MAX_PATH * 4] = L"";
@@ -152,6 +160,11 @@ void load_config(const std::string& path) {
         if (is_steam_deck()) {
             g_cfg.widescreen_hack = true;
             g_cfg.aspect = 3;  // 16:10 screen
+            g_cfg.fullscreen = true;
+        } else if (GetSystemMetrics(SM_CXSCREEN) >= 2 * GetSystemMetrics(SM_CYSCREEN)) {
+            // first start on an ultrawide screen (21:9, 32:9): widescreen view in the screen's shape
+            g_cfg.widescreen_hack = true;
+            g_cfg.aspect = 4;
             g_cfg.fullscreen = true;
         }
         save_config();
@@ -232,7 +245,7 @@ void save_config() {
     fprintf(f, "width = %d\nheight = %d\n", g_cfg.window_width, g_cfg.window_height);
     fprintf(f, "fullscreen = %d\n", g_cfg.fullscreen);
     fprintf(f, "vsync = %d\n", g_cfg.vsync);
-    fprintf(f, "; aspect: 0 = 4:3, 1 = 16:9, 2 = stretch, 3 = 16:10 (Steam Deck; with widescreen a real 16:10 view)\n");
+    fprintf(f, "; aspect: 0 = 4:3, 1 = 16:9, 2 = stretch, 3 = 16:10 (Steam Deck; with widescreen a real 16:10 view),\n;         4 = shape of the window (ultrawide screens such as 21:9: the widescreen view fills it)\n");
     fprintf(f, "aspect = %d\n", g_cfg.aspect);
     fprintf(f, "; filter: 0 = nearest, 1 = bilinear, 2 = sharp bilinear\n");
     fprintf(f, "filter = %d\n", g_cfg.filter);
@@ -714,6 +727,7 @@ static void draw_present(ID3D11ShaderResourceView* srv, int tex_w, int tex_h) {
     GetClientRect(g_hwnd, &cr);
     float ww = (float)(cr.right - cr.left), wh = (float)(cr.bottom - cr.top);
     if (ww < 1 || wh < 1 || !g_rtv) return;
+    g_win_aspect = ww / wh;
     float clear[4] = {0, 0, 0, 1};
     g_ctx->ClearRenderTargetView(g_rtv, clear);
     if (srv) {

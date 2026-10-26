@@ -68,7 +68,8 @@ Backspace = Select. Controllers (XInput) work out of the box, including rumble.
 Features
 --------
 - Internal resolution up to 8x (automatic: matching your screen height)
-- Widescreen: a real 16:9 or 16:10 view of the 3D scenes; menus and text keep their 4:3 proportions
+- Widescreen: a real 16:9 or 16:10 view of the 3D scenes, or ultrawide (21:9, 32:9: aspect "Screen");
+  menus and text keep their 4:3 proportions
 - 60 fps in the field and (optionally) in battles, with correct game speed; a scene that cannot hold
   60 fps falls back to 30 by itself
 - Savestates (9 slots) everywhere, also in battles and cutscenes
@@ -94,7 +95,7 @@ The F1 menu covers everything; grandia3.ini holds the same settings, a few more,
 Some of them:
   language = en          en = original English text, de = German
   internal_scale = 0     0 = automatic, 1 = original 512 x 448, 2 .. 8
-  aspect = 0             0 = 4:3, 1 = 16:9, 2 = fill the window, 3 = 16:10
+  aspect = 0             0 = 4:3, 1 = 16:9, 2 = fill the window, 3 = 16:10, 4 = screen (ultrawide)
   widescreen_hack = 1    widescreen view
   big_text = -1          large dialogue windows: -1 automatic (Steam Deck), 0 off, 1 on
   text_scale = 1.25      their size

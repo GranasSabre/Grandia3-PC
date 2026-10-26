@@ -102,11 +102,11 @@ void build_items() {
                        },
                        [&c](int dir) { c.filter = (c.filter + (dir < 0 ? 2 : 1)) % 3; }});
     g_items.push_back({L"Seitenverhältnis", [&c] {
-                           static const wchar_t* N[4] = {L"4:3", L"16:9", L"Fenster füllen", L"16:10 (Steam Deck)"};
-                           return std::wstring(N[clampi(c.aspect, 0, 3)]);
+                           static const wchar_t* N[5] = {L"4:3", L"16:9", L"Fenster füllen", L"16:10 (Steam Deck)", L"Bildschirm (Ultrawide)"};
+                           return std::wstring(N[clampi(c.aspect, 0, 4)]);
                        },
                        [&c](int dir) {
-                           c.aspect = (c.aspect + (dir < 0 ? 3 : 1)) % 4;
+                           c.aspect = (c.aspect + (dir < 0 ? 4 : 1)) % 5;
                            apply_patches();
                            kernel::g_preview_vblanks = 8;
                        }});
