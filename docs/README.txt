@@ -25,6 +25,9 @@ Installation
 3. At the first start it asks for the image of your disc 1. Choose the .iso file. The path is stored in
    grandia3.ini; later starts go straight to the game.
 
+Tip: put the ISO into the program folder, named "disc1.iso" (disc 2: "disc2.iso") or with its Redump
+name "Grandia III (USA) (Disc 1).iso". It is then found on its own and no file dialog appears.
+
 Changing to disc 2 works as on the console: save at the end of disc 1, then choose "Change disc" in the
 F1 menu. The game restarts with disc 2 (it asks for that image once); load your save there.
 
@@ -35,6 +38,8 @@ Steam Deck
 ----------
 - Copy the folder to the Deck, add Grandia3.exe in Steam as a "non-Steam game" and set its
   compatibility tool to Proton (Properties > Compatibility).
+- Easiest: copy your ISOs into the same folder as "disc1.iso" and "disc2.iso" (or keep their Redump
+  names). Then the game finds them by itself - no file dialog, which is handy in Game Mode.
 - The Deck is detected automatically: on the first start the game uses a real 16:10 widescreen view,
   full screen and large dialogue windows.
 - Controls: View + Menu = settings menu, View + R1 = save a savestate, View + L1 = load it.

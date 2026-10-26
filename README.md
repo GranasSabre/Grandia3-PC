@@ -13,7 +13,8 @@ This is a fan project, not affiliated with Square Enix or Game Arts.
 ## Download and play
 
 Get `Grandia3-PC-v*.zip` from the [Releases](../../releases), unzip it, start `Grandia3.exe` and choose
-your disc 1 image when asked. Details, keys and settings: [docs/README.txt](docs/README.txt)
+your disc 1 image when asked - or put the image next to the exe as `disc1.iso` (disc 2: `disc2.iso`) and it
+is found without a file dialog (handy on the Steam Deck). Details, keys and settings: [docs/README.txt](docs/README.txt)
 (German: [docs/LIESMICH.txt](docs/LIESMICH.txt)).
 
 Works on Windows 10/11 (Direct3D 11.3 graphics card) and on the Steam Deck / Linux with Proton.
