@@ -32,7 +32,7 @@ def main():
     if debug:
         cxx_flags += ' -DGR3_DEBUG=1'
     ldflags = ('-static -mwindows' if not debug else '-static') + f' -Wl,-Map={bdir}/Grandia3.map'
-    libs = '-ld3d11 -ldxgi -ld3dcompiler -lxinput -lole32 -lwinmm -luser32 -lgdi32 -lshell32 -lavrt -lksuser -luuid -lcomctl32 -lwindowscodecs -lcomdlg32'
+    libs = '-ld3d11 -ldxgi -ld3dcompiler -lxinput1_4 -lole32 -lwinmm -luser32 -lgdi32 -lshell32 -lavrt -lksuser -luuid -lcomctl32 -lwindowscodecs -lcomdlg32'
     lines = [
         f'builddir = {bdir}',
         f'cc = {os.path.join(TC, "clang.exe")}',
