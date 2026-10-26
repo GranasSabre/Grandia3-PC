@@ -29,12 +29,22 @@ def find_sublayers(disc):
     for fn in sorted(os.listdir(btl)):
         p = os.path.join(btl, fn)
         d = open(p, 'rb').read()
+        # the file starts with a chunk table (count, then offset/size pairs); a sublayer's chunk also
+        # holds the switch jump tables placed after the data the header counts
+        chunks = {}
+        n = struct.unpack_from('<I', d, 0)[0] if len(d) >= 4 else 0
+        if 0 < n < 64 and 4 + 8 * n <= len(d):
+            for k in range(n):
+                o, s = struct.unpack_from('<II', d, 4 + 8 * k)
+                chunks[o] = s
         pos = d.find(b'gccM')
         while pos != -1:
             if pos % 16 == 0 and d[pos + 0x20:pos + 0x2C] == b'SUBLAYER.BIN':
                 magic, ver, load, text, data, bss, a6, a7 = struct.unpack_from('<4s7I', d, pos)
                 img = d[pos:pos + 0x80 + text + data]
-                h = hashlib.sha1(img).hexdigest()[:10]
+                h = hashlib.sha1(img).hexdigest()[:10]   # names stay as before the jump table fix
+                if pos in chunks and chunks[pos] > len(img):
+                    img = d[pos:pos + chunks[pos]]
                 if h not in res:
                     res[h] = (fn, pos, load, text, data, bss, img)
             pos = d.find(b'gccM', pos + 1)
@@ -61,7 +71,7 @@ def main():
     subs = find_sublayers(disc)
     for h, (fn, pos, load, text, data, bss, img) in sorted(subs.items()):
         from codeinfo import extend_code_end
-        m = Module('sub_' + h, load, img, extend_code_end(img, load, load + 0x80 + text), load + 0x80 + text + data,
+        m = Module('sub_' + h, load, img, extend_code_end(img[:0x80 + text + data], load, load + 0x80 + text), load + 0x80 + text + data,
                    load + 0x80 + text + data + bss, code_start=load + 0x80)
         mods.append(('sub_' + h, 'sub_' + h, m))
         sources['sub_' + h] = ('/BTL/' + fn, pos, len(img))

@@ -9,11 +9,11 @@ from make_sys import width
 from make_lang import font_widths
 
 BSN = chr(92) + 'n'
-DE = {'ä': 0xB8, 'ö': 0xB9, 'ü': 0xBA, 'Ä': 0xBB, 'Ö': 0xBC, 'Ü': 0xBD, 'ß': 0xBE}
+from letters import CODE as DE, normalize
 
 
 def encode(s):
-    out, i = bytearray(), 0
+    out, i, s = bytearray(), 0, normalize(s)
     while i < len(s):
         if s.startswith(BSN, i):
             out.append(8); i += 2; continue

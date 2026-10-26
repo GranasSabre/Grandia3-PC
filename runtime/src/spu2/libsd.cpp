@@ -6,6 +6,7 @@
 #include "../memory.h"
 #include "iop_recomp.h"
 #include "spu2.h"
+#include "../platform/subtitles.h"
 
 using namespace spu2;
 
@@ -433,6 +434,7 @@ void iop_imp_libsd_17(IOPContext* c) {  // sceSdVoiceTrans(chan, mode, iopaddr, 
     u32 bytes = (mode & 8) ? size : ((size + 63) & ~63u);  // DMA moves whole 64-byte blocks
     u32 hw = (spu >> 1) & RAM_MASK;
     if ((mode & 3) == 0) {
+        subs::on_voice_trans(iop, spu, bytes);
         for (u32 i = 0; i < bytes / 2; i++)
             g_ram[(hw + i) & RAM_MASK] = (u16)(mem::iop_ram[(iop + i * 2) & 0x1FFFFF] |
                                               (mem::iop_ram[(iop + i * 2 + 1) & 0x1FFFFF] << 8));

@@ -165,15 +165,47 @@ static std::string layout_signature() {
 // ---------------------------------------------------------------------------
 // Save
 // ---------------------------------------------------------------------------
+// The compression API (cabinet.dll, Windows 8 and later) is looked up when first needed: imported
+// directly, one missing export in an older Wine/Proton stops the program before it even starts.
+// Without it savestates are written uncompressed.
+struct CabinetApi {
+    decltype(&CreateCompressor) create_compressor = nullptr;
+    decltype(&Compress) compress = nullptr;
+    decltype(&CloseCompressor) close_compressor = nullptr;
+    decltype(&CreateDecompressor) create_decompressor = nullptr;
+    decltype(&Decompress) decompress = nullptr;
+    decltype(&CloseDecompressor) close_decompressor = nullptr;
+};
+
+static const CabinetApi& cabinet() {
+    static const CabinetApi api = [] {
+        CabinetApi a;
+        if (HMODULE m = LoadLibraryW(L"cabinet.dll")) {
+            a.create_compressor = (decltype(a.create_compressor))(void*)GetProcAddress(m, "CreateCompressor");
+            a.compress = (decltype(a.compress))(void*)GetProcAddress(m, "Compress");
+            a.close_compressor = (decltype(a.close_compressor))(void*)GetProcAddress(m, "CloseCompressor");
+            a.create_decompressor = (decltype(a.create_decompressor))(void*)GetProcAddress(m, "CreateDecompressor");
+            a.decompress = (decltype(a.decompress))(void*)GetProcAddress(m, "Decompress");
+            a.close_decompressor = (decltype(a.close_decompressor))(void*)GetProcAddress(m, "CloseDecompressor");
+        }
+        if (!a.create_compressor || !a.compress || !a.close_compressor)
+            log_write(LOG_MAIN, "savestate: no compression API, states are written uncompressed");
+        return a;
+    }();
+    return api;
+}
+
 static bool compress_xpress(const std::vector<u8>& in, std::vector<u8>& out) {
+    const CabinetApi& api = cabinet();
+    if (!api.create_compressor || !api.compress || !api.close_compressor) return false;
     COMPRESSOR_HANDLE c = nullptr;
-    if (!CreateCompressor(COMPRESS_ALGORITHM_XPRESS_HUFF, nullptr, &c)) return false;
+    if (!api.create_compressor(COMPRESS_ALGORITHM_XPRESS_HUFF, nullptr, &c)) return false;
     SIZE_T need = 0;
-    Compress(c, (PVOID)in.data(), in.size(), nullptr, 0, &need);
+    api.compress(c, (PVOID)in.data(), in.size(), nullptr, 0, &need);
     out.resize(need);
     SIZE_T got = 0;
-    bool ok = Compress(c, (PVOID)in.data(), in.size(), out.data(), out.size(), &got);
-    CloseCompressor(c);
+    bool ok = api.compress(c, (PVOID)in.data(), in.size(), out.data(), out.size(), &got);
+    api.close_compressor(c);
     out.resize(ok ? got : 0);
     return ok;
 }
@@ -248,12 +280,14 @@ static bool read_file(int slot, Header& h, std::string& sig, std::vector<u8>& pa
     fclose(f);
     if (!ok) return false;
     if (!h.compressed) { payload.swap(data); return true; }
+    const CabinetApi& api = cabinet();
     DECOMPRESSOR_HANDLE d = nullptr;
-    if (!CreateDecompressor(COMPRESS_ALGORITHM_XPRESS_HUFF, nullptr, &d)) { err = "Entpacken nicht möglich"; return false; }
+    if (!api.create_decompressor || !api.decompress || !api.close_decompressor ||
+        !api.create_decompressor(COMPRESS_ALGORITHM_XPRESS_HUFF, nullptr, &d)) { err = "Entpacken nicht möglich"; return false; }
     payload.resize(h.raw_size);
     SIZE_T got = 0;
-    ok = Decompress(d, data.data(), data.size(), payload.data(), payload.size(), &got) && got == h.raw_size;
-    CloseDecompressor(d);
+    ok = api.decompress(d, data.data(), data.size(), payload.data(), payload.size(), &got) && got == h.raw_size;
+    api.close_decompressor(d);
     if (!ok) err = "Datei beschädigt";
     return ok;
 }

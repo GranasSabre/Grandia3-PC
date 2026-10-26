@@ -16,6 +16,7 @@
 #include "iop/cdvd.h"
 #include "platform/platform.h"
 #include "platform/audio.h"
+#include "platform/subtitles.h"
 #include "ee_modules.h"
 #include <windows.h>
 #include <map>
@@ -337,6 +338,7 @@ int main(int argc, char** argv) {
         iso.clear();
     }
     mem::init();
+    subs::init();
     platform::apply_patches();
     kernel::g_force60 = cfg.fps60;
     g_ee_patch[1] = g_ee_patch[2] = cfg.remove_letterbox;

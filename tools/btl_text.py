@@ -16,7 +16,7 @@ REGIONS = [  # (name, start, end, kind): strings ending in 0000 / text runs insi
     ('advice', 0x27710, 0x27A60, 'str'),
     ('tutorial', 0x2B400, 0x2CC00, 'script'),
 ]
-DE = {'ä': 0xB8, 'ö': 0xB9, 'ü': 0xBA, 'Ä': 0xBB, 'Ö': 0xBC, 'Ü': 0xBD, 'ß': 0xBE}
+from letters import CODE as DE, normalize
 
 
 def fnv32(b):
@@ -48,7 +48,7 @@ def readable(raw):
 
 
 def encode(s):
-    out, i = bytearray(), 0
+    out, i, s = bytearray(), 0, normalize(s)
     while i < len(s):
         ch = s[i]
         if s.startswith('\\n', i):
@@ -107,7 +107,7 @@ def script_runs(d, a, e):
 
 def width(s, wt, name_w=60):
     """pixel width of a readable line; placeholders count as name_w"""
-    w = 0
+    w, s = 0, normalize(s)
     for part in re.split(r'(<\d+>|\{[0-9a-f]+\})', s):
         if not part:
             continue

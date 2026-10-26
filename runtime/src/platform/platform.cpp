@@ -3,6 +3,7 @@
 #include "../memory.h"
 #include "../ee/kernel.h"
 #include "../savestate.h"
+#include "subtitles.h"
 #include <windows.h>
 #include <d3d11.h>
 #include <dxgi1_2.h>
@@ -188,6 +189,7 @@ void load_config(const std::string& path) {
         else if (k == "fps60_battle") g_cfg.fps60_battle = iv != 0;
         else if (k == "movie_skip") g_cfg.movie_skip = iv != 0;
         else if (k == "cutscene_skip") g_cfg.cutscene_skip = iv != 0;
+        else if (k == "subtitles") g_cfg.subtitles = iv != 0;
         else if (k == "state_slot") g_cfg.state_slot = iv < 1 ? 1 : iv > 9 ? 9 : iv;
         else if (k == "gs_thread") g_cfg.gs_thread = iv != 0;
         else if (k == "language") { g_cfg.language = v; for (char& ch : g_cfg.language) ch = (char)tolower((unsigned char)ch); }
@@ -255,10 +257,11 @@ void save_config() {
     fprintf(f, "fps60 = %d\nfps60_battle = %d\n", g_cfg.fps60, g_cfg.fps60_battle);
     fprintf(f, "; START or SELECT skips movies (also those the original does not let you skip)\nmovie_skip = %d\n", g_cfg.movie_skip);
     fprintf(f, "; START skips cutscenes (they run invisibly at high speed until they end)\ncutscene_skip = %d\n", g_cfg.cutscene_skip);
+    fprintf(f, "; subtitles for voiced cutscenes (lang\\sub_<language>.tsv)\nsubtitles = %d\n", g_cfg.subtitles);
     fprintf(f, "; savestate slot used by F5 (save) and F9 (load)\nstate_slot = %d\n", g_cfg.state_slot);
     fprintf(f, "integer_scaling = %d\n", g_cfg.integer_scaling);
     fprintf(f, "show_fps = %d\n", g_cfg.show_fps);
-    fprintf(f, "frame_limit = %d\n", g_cfg.frame_limit);
+    fprintf(f, "; 1 = normal game speed, 0 = fast forward (4 times as fast, like holding Tab)\nframe_limit = %d\n", g_cfg.frame_limit);
     fprintf(f, "\n[Audio]\nenabled = %d\n; volume: 0..100\nvolume = %d\n", g_cfg.audio_enabled, g_cfg.volume);
     fprintf(f, "; separate volumes 0..100: music, speech, sound effects, movies\nvolume_music = %d\nvolume_voice = %d\nvolume_sfx = %d\nvolume_movie = %d\n",
             g_cfg.vol_music, g_cfg.vol_voice, g_cfg.vol_sfx, g_cfg.vol_movie);
@@ -325,6 +328,13 @@ static int g_fps_w = 0, g_fps_h = 0;
 static u64 g_fps_version = 0;
 static std::vector<u32> g_fps_px;
 static float g_pic_x = 0, g_pic_y = 0;  // top-left of the game picture in the window
+static float g_pic_w = 0, g_pic_h = 0;
+// cutscene subtitle (option subtitles)
+static ID3D11Texture2D* g_sub_tex;
+static ID3D11ShaderResourceView* g_sub_srv;
+static int g_sub_w = 0, g_sub_h = 0;
+static u64 g_sub_version = 0;
+static std::vector<u32> g_sub_px;
 static ID3D11PixelShader* g_ps_cas;
 static ID3D11Texture2D* g_mid;                 // scaled picture before sharpening (window size)
 static ID3D11RenderTargetView* g_mid_rtv;
@@ -495,6 +505,7 @@ static LRESULT CALLBACK wndproc(HWND h, UINT msg, WPARAM wp, LPARAM lp) {
         return 0;
     case WM_KILLFOCUS:
         memset(g_keys, 0, sizeof(g_keys));
+        g_cfg.frame_limit = 1;  // the Tab release is lost when the focus moves while it is held
         break;
     }
     return DefWindowProcW(h, msg, wp, lp);
@@ -718,6 +729,8 @@ static void draw_present(ID3D11ShaderResourceView* srv, int tex_w, int tex_h) {
         float x = (ww - w) * 0.5f, y = (wh - h) * 0.5f;
         g_pic_x = x;
         g_pic_y = y;
+        g_pic_w = w;
+        g_pic_h = h;
         // sharpening: scale into an intermediate picture, then sharpen it into the back buffer
         bool cas = g_cfg.sharpen > 0 && g_ps_cas;
         if (cas && (g_mid_w != (int)ww || g_mid_h != (int)wh)) {
@@ -883,6 +896,61 @@ static void draw_present(ID3D11ShaderResourceView* srv, int tex_w, int tex_h) {
                 g_ctx->PSSetConstantBuffers(0, 1, &g_cb_cas);
                 g_ctx->PSSetShader(g_ps_overlay, nullptr, 0);
                 g_ctx->PSSetShaderResources(0, 1, &g_fps_srv);
+                g_ctx->PSSetSamplers(0, 1, &g_samp_lin);
+                g_ctx->Draw(4, 0);
+                ID3D11ShaderResourceView* none = nullptr;
+                g_ctx->PSSetShaderResources(0, 1, &none);
+                g_ctx->OMSetBlendState(nullptr, bf, 0xFFFFFFFF);
+            }
+        }
+    }
+    if (g_cfg.subtitles && !overlay_open() && !skip_active() && g_ps_overlay && g_blend_alpha && g_pic_h > 0) {
+        int ow = 0, oh = 0;
+        u64 ver = g_sub_version;
+        if (subs::pixels((int)g_pic_w, (int)g_pic_h, g_sub_px, ow, oh, ver) && ow > 0 && oh > 0) {
+            if (!g_sub_tex || ow != g_sub_w || oh != g_sub_h) {
+                if (g_sub_srv) g_sub_srv->Release();
+                if (g_sub_tex) g_sub_tex->Release();
+                g_sub_srv = nullptr;
+                g_sub_tex = nullptr;
+                D3D11_TEXTURE2D_DESC td{};
+                td.Width = (UINT)ow;
+                td.Height = (UINT)oh;
+                td.MipLevels = 1;
+                td.ArraySize = 1;
+                td.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
+                td.SampleDesc.Count = 1;
+                td.Usage = D3D11_USAGE_DEFAULT;
+                td.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+                if (SUCCEEDED(g_dev->CreateTexture2D(&td, nullptr, &g_sub_tex))) g_dev->CreateShaderResourceView(g_sub_tex, nullptr, &g_sub_srv);
+                g_sub_w = ow;
+                g_sub_h = oh;
+                g_sub_version = 0;
+            }
+            if (g_sub_tex && ver != g_sub_version) {
+                g_ctx->UpdateSubresource(g_sub_tex, 0, nullptr, g_sub_px.data(), ow * 4, 0);
+                g_sub_version = ver;
+            }
+            if (g_sub_srv) {
+                // centred near the bottom of the game picture
+                float x = floorf(g_pic_x + (g_pic_w - ow) * 0.5f), y = floorf(g_pic_y + g_pic_h * 0.955f - oh);
+                float cbo[8] = {x / ww, y / wh, (float)ow / ww, (float)oh / wh, 0, 0, 0, 0};
+                D3D11_MAPPED_SUBRESOURCE mo;
+                g_ctx->Map(g_cb_cas, 0, D3D11_MAP_WRITE_DISCARD, 0, &mo);
+                memcpy(mo.pData, cbo, sizeof(cbo));
+                g_ctx->Unmap(g_cb_cas, 0);
+                D3D11_VIEWPORT vpo{0, 0, ww, wh, 0, 1};
+                g_ctx->RSSetViewports(1, &vpo);
+                g_ctx->OMSetRenderTargets(1, &g_rtv, nullptr);
+                float bf[4] = {0, 0, 0, 0};
+                g_ctx->OMSetBlendState(g_blend_alpha, bf, 0xFFFFFFFF);
+                g_ctx->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
+                g_ctx->IASetInputLayout(nullptr);
+                g_ctx->VSSetShader(g_vs, nullptr, 0);
+                g_ctx->VSSetConstantBuffers(0, 1, &g_cb_cas);
+                g_ctx->PSSetConstantBuffers(0, 1, &g_cb_cas);
+                g_ctx->PSSetShader(g_ps_overlay, nullptr, 0);
+                g_ctx->PSSetShaderResources(0, 1, &g_sub_srv);
                 g_ctx->PSSetSamplers(0, 1, &g_samp_lin);
                 g_ctx->Draw(4, 0);
                 ID3D11ShaderResourceView* none = nullptr;

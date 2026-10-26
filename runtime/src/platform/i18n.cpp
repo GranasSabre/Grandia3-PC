@@ -18,6 +18,7 @@ static const wchar_t* const TEXTS[][2] = {
     {L"Grafik", L"Graphics"},
     {L"Menüs/Texte im 4:3-Format", L"Menus/text in 4:3 format"},
     {L"Große Dialogfenster", L"Large dialogue windows"},
+    {L"Untertitel in Zwischensequenzen", L"Subtitles in cutscenes"},
     {L"braucht Widescreen", L"needs widescreen"},
     {L"Auto (an: Steam Deck)", L"Auto (on: Steam Deck)"},
     {L"Auto (aus)", L"Auto (off)"},

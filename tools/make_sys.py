@@ -9,11 +9,11 @@ import glob, os, re, sys
 from sys_batches import tid, rows, done
 from make_lang import font_widths
 
-DE_BASE = {'ä': 'a', 'ö': 'o', 'ü': 'u', 'Ä': 'A', 'Ö': 'O', 'Ü': 'U', 'ß': 'B'}
+from letters import BASE as DE_BASE, normalize
 
 
 def width(line, wt):
-    w, i = 0, 0
+    w, i, line = 0, 0, normalize(line)
     while i < len(line):
         if line[i] == '{':
             e = line.index('}', i)

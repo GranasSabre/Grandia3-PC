@@ -212,6 +212,15 @@ bool read_sectors(u32 lsn, u32 count, void* dst) {
     return got == len;
 }
 
+std::string file_at(u32 lsn, u32* file_lsn) {
+    for (const auto& [name, e] : g_files)
+        if (!e.dir && lsn >= e.lsn && lsn < e.lsn + (e.size + 2047) / 2048) {
+            *file_lsn = e.lsn;
+            return name;
+        }
+    return "";
+}
+
 bool find_file(const std::string& path, u32* lsn, u32* size) {
     auto it = g_files.find(norm(path));
     if (it == g_files.end()) return false;

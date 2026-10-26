@@ -77,6 +77,9 @@ Features
   (needs the widescreen view)
 - Sharp text at high resolutions, contrast adaptive sharpening, image filters
 - Separate volume for music, voices, effects and movies
+- Subtitles for voiced cutscenes and movies without a text box (experimental, English): so far from
+  the opening up to the night on Alonso's ship after the casino with Bianca; later scenes follow.
+  Switch: F1 menu "Subtitles in cutscenes". Please report wrong timing or wrong/missing lines.
 - Language: the original English text, or German (complete translation). More languages can be added
   as lang\<code>.tsv files.
 - HD texture packs: images in a folder "textures" next to the program replace the game's textures
@@ -95,6 +98,7 @@ Some of them:
   text_scale = 1.25      their size
   fps60 = 0              60 fps (F3)
   gs_thread = 1          3D geometry on a processor core of its own (faster)
+  subtitles = 1          subtitles in cutscenes (lang\sub_en.tsv)
 
 
 Problems?

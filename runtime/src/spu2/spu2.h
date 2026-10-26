@@ -100,6 +100,7 @@ void write_esa(int core, u32 hw_addr);
 void set_attr(int core, u16 v);
 inline u32 eea(int core) { return (g_core[core].eea_hi << 16) | 0xFFFF; }
 u32 voice_nax(int core, int voice);   // halfword address of current playback position
+bool voice_playing(int core, int voice);
 
 // AutoDMA (block transfer)
 int adma_start_write(int core, u32 iop_addr, u32 size, bool loop, u32 start_offset, u32 start_buff);

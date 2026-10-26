@@ -8,7 +8,7 @@
 import glob, os, sys
 import scnr_text as S
 
-GERMAN = {'ä': 'a', 'ö': 'o', 'ü': 'u', 'Ä': 'A', 'Ö': 'O', 'Ü': 'U', 'ß': 'B'}
+from letters import BASE as GERMAN, normalize
 MAX_W, MAX_LINES = 256, 4
 
 
@@ -27,7 +27,7 @@ def controls(raw):
 
 def encode(txt):
     """like the runtime: \\n, {hex}, space; German letters measured as their base letters"""
-    out, i = bytearray(), 0
+    out, i, txt = bytearray(), 0, normalize(txt)
     while i < len(txt):
         if txt.startswith('\\n', i):
             out.append(8); i += 2; continue
@@ -87,6 +87,9 @@ def check(key, txt, orig, wt):
         return ['unknown key']
     enc = encode(txt)
     probs = []
+    bad = sorted({c for c in normalize(txt) if ord(c) > 126 and c not in GERMAN and c not in '„“”–—…'})
+    if bad:
+        probs.append('characters missing in the font: %s' % ' '.join(bad))
     if controls(enc) != controls(raw):
         probs.append('control sequences %s, original %s' % (' '.join(c.hex() for c in controls(enc)), ' '.join(c.hex() for c in controls(raw))))
     if key in MENUS and enc.count(8) != raw.count(8):

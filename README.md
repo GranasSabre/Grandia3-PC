@@ -28,6 +28,9 @@ Works on Windows 10/11 (Direct3D 11.3 graphics card) and on the Steam Deck / Lin
 - Large dialogue windows for small screens (Steam Deck: automatic), sharp text, sharpening, filters
 - Steam Deck: detected automatically (16:10 view, full screen, large windows, controller shortcuts)
 - Languages: original English text or a complete German translation; more via `lang/<code>.tsv`
+- Subtitles for voiced cutscenes and movies (experimental, English, so far up to Alonso's ship): the
+  runtime follows the voice stream on its way to the sound chip (`runtime/src/platform/subtitles.cpp`),
+  the timings come from the voice-over script (`tools/subs`)
 - HD texture packs: PNG files in a `textures` folder replace the game's textures
 
 ## How it works

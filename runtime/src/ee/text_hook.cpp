@@ -32,13 +32,33 @@ static FILE* g_seen = nullptr;
 static const u32 BUF_BASE = 0x00040000, BUF_SLOT = 0x1000, BUF_SLOTS = 16;  // unused low EE RAM
 static u32 g_slot = 0;
 
-// German letters: glyph slots (unused kana) and the letters they are made from
-struct Extra { const char* utf8; u8 glyph; char base; bool upper; };
+// Extra letters: glyph slots (unused kana) and the letters they are made from. German 0x98..0x9E
+// (dots as before), French 0x9F..0xB0 (accent templates, see fr_glyphs.py for a preview).
+// accent: 'd' dots, 'a' acute, 'g' grave, 'c' circumflex, 'k' cedilla, 0 = ß
+struct Extra { const char* utf8; u8 glyph; char base; bool upper; char accent; bool german; };
 static const Extra EXTRA[] = {
-    {"\xC3\xA4", 0x98, 'a', false}, {"\xC3\xB6", 0x99, 'o', false}, {"\xC3\xBC", 0x9A, 'u', false},
-    {"\xC3\x84", 0x9B, 'A', true},  {"\xC3\x96", 0x9C, 'O', true},  {"\xC3\x9C", 0x9D, 'U', true},
-    {"\xC3\x9F", 0x9E, 0, false},
+    {"\xC3\xA4", 0x98, 'a', false, 'd', true}, {"\xC3\xB6", 0x99, 'o', false, 'd', true}, {"\xC3\xBC", 0x9A, 'u', false, 'd', true},
+    {"\xC3\x84", 0x9B, 'A', true, 'd', true},  {"\xC3\x96", 0x9C, 'O', true, 'd', true},  {"\xC3\x9C", 0x9D, 'U', true, 'd', true},
+    {"\xC3\x9F", 0x9E, 0, false, 0, true},
+    {"\xC3\xA0", 0x9F, 'a', false, 'g', false}, {"\xC3\xA2", 0xA0, 'a', false, 'c', false}, {"\xC3\xA7", 0xA1, 'c', false, 'k', false},
+    {"\xC3\xA9", 0xA2, 'e', false, 'a', false}, {"\xC3\xA8", 0xA3, 'e', false, 'g', false}, {"\xC3\xAA", 0xA4, 'e', false, 'c', false},
+    {"\xC3\xAB", 0xA5, 'e', false, 'd', false}, {"\xC3\xAE", 0xA6, 'i', false, 'c', false}, {"\xC3\xAF", 0xA7, 'i', false, 'd', false},
+    {"\xC3\xB4", 0xA8, 'o', false, 'c', false}, {"\xC3\xB9", 0xA9, 'u', false, 'g', false}, {"\xC3\xBB", 0xAA, 'u', false, 'c', false},
+    {"\xC3\x80", 0xAB, 'A', true, 'g', false},  {"\xC3\x87", 0xAC, 'C', true, 'k', false},  {"\xC3\x89", 0xAD, 'E', true, 'a', false},
+    {"\xC3\x88", 0xAE, 'E', true, 'g', false},  {"\xC3\x8A", 0xAF, 'E', true, 'c', false},  {"\xC3\x94", 0xB0, 'O', true, 'c', false},
 };
+
+// French accent templates: columns cx-2..cx+3 (cx = left of the two centre columns), '#' = ink
+static const char* accent_tpl(char accent, int kind, int row) {
+    static const char* LOW[4][3] = {{"...##.", "..##..", ".##..."}, {".##...", "..##..", "...##."},
+                                    {"..##..", ".####.", "##..##"}, {"##..##", "##..##", "......"}};
+    static const char* CAP[4][2] = {{"...##.", ".##..."}, {".##...", "...##."}, {"..##..", "##..##"}, {"##..##", "......"}};
+    static const char* NARROW[2][2] = {{".#.", "#.#"}, {"#.#", "..."}};  // over i: cx-1..cx+1
+    int a = accent == 'a' ? 0 : accent == 'g' ? 1 : accent == 'c' ? 2 : 3;
+    if (kind == 0) return row < 3 ? LOW[a][row] : nullptr;
+    if (kind == 1) return row < 2 ? CAP[a][row] : nullptr;
+    return row < 2 ? NARROW[a == 2 ? 0 : 1][row] : nullptr;
+}
 
 // argument bytes of a control code inside message text (0E speaker/face, 13 FF pause, 12 style)
 static inline size_t ctrl_args(u8 b) { return b == 0x0E ? 3 : b == 0x13 ? 2 : b == 0x12 ? 1 : 0; }
@@ -75,6 +95,12 @@ static std::vector<u8> encode(const std::string& s) {
             if (s.compare(i, 3, "\xE2\x80\x9E") == 0 || s.compare(i, 3, "\xE2\x80\x9C") == 0 || s.compare(i, 3, "\xE2\x80\x9D") == 0) { out.push_back('"' + 0x20); i += 3; }
             else if (s.compare(i, 3, "\xE2\x80\x93") == 0 || s.compare(i, 3, "\xE2\x80\x94") == 0) { out.push_back('-' + 0x20); i += 3; }
             else if (s.compare(i, 3, "\xE2\x80\xA6") == 0) { for (int k = 0; k < 3; k++) out.push_back('.' + 0x20); i += 3; }
+            // French: guillemets -> ", oe ligature spelled out, narrow/no-break spaces -> space
+            else if (s.compare(i, 2, "\xC2\xAB") == 0 || s.compare(i, 2, "\xC2\xBB") == 0) { out.push_back('"' + 0x20); i += 2; }
+            else if (s.compare(i, 2, "\xC5\x93") == 0) { out.push_back('o' + 0x20); out.push_back('e' + 0x20); i += 2; }
+            else if (s.compare(i, 2, "\xC5\x92") == 0) { out.push_back('O' + 0x20); out.push_back('e' + 0x20); i += 2; }
+            else if (s.compare(i, 2, "\xC2\xA0") == 0) { out.push_back(0xA0); i += 2; }
+            else if (s.compare(i, 3, "\xE2\x80\xAF") == 0) { out.push_back(0xA0); i += 3; }
             else { out.push_back('?' + 0x20); i++; while (i < s.size() && ((unsigned char)s[i] & 0xC0) == 0x80) i++; }
         }
     }
@@ -131,7 +157,58 @@ static void make_glyphs(u32 tbl) {
         u8* dst = glyph_ptr(tbl, e.glyph);
         if (!dst) return;
         u8 tmp[128];
-        if (e.base) {
+        if (e.base && !e.german) {
+            int bg = e.base - 0x20;
+            memcpy(tmp, glyph_ptr(tbl, bg), 128);
+            u8 wd[2];
+            memcpy(wd, width_ptr(tbl, bg), 2);
+            int top = 16, x0 = 16, x1 = -1;
+            for (int y = 0; y < 16; y++)
+                for (int x = 0; x < 16; x++)
+                    if (get(tmp, x, y) > 4) { top = std::min(top, y); x0 = std::min(x0, x); x1 = std::max(x1, x); }
+            int cx = (x0 + x1) / 2, kind = 0, left = cx - 2, row0 = top - 4;
+            if (e.base == 'i') {  // no dot, two pixels wider for the accent
+                memset(tmp, 0, 5 * 8);
+                top = 5;
+                wd[0] = (u8)(wd[0] + 1);
+                wd[1] = (u8)(wd[1] + 2);
+                kind = 2, left = cx - 1, row0 = top - 3;
+            } else if (e.accent == 'k') {
+                left = cx - 2, row0 = 14;
+            } else if (e.upper) {
+                // squeeze the capital: drop the two rows most like the row above them (not adjacent)
+                int drop[2] = {-1, -1};
+                for (int n = 0; n < 2; n++) {
+                    int best = -1, bd = 1 << 30;
+                    for (int y = top + 1; y < 15; y++) {
+                        if (y == drop[0] || y == drop[0] - 1 || y == drop[0] + 1) continue;
+                        int d = 0;
+                        for (int x = 0; x < 16; x++) d += abs(get(tmp, x, y) - get(tmp, x, y - 1));
+                        int score = d * 16 + abs(y - 8);
+                        if (score < bd) bd = score, best = y;
+                    }
+                    drop[n] = best;
+                }
+                u8 sq[128];
+                memset(sq, 0, 128);
+                int out = 15;
+                for (int y = 15; y >= 0 && out >= 2; y--) {
+                    if (y == drop[0] || y == drop[1]) continue;
+                    memcpy(sq + out * 8, tmp + y * 8, 8);
+                    out--;
+                }
+                memcpy(tmp, sq, 128);
+                kind = 1, row0 = 0;
+            }
+            for (int r = 0; r < 3; r++) {
+                const char* line = e.accent == 'k' ? (r < 2 ? (r ? ".##..." : "..##..") : nullptr) : accent_tpl(e.accent, kind, r);
+                if (!line) break;
+                for (int c = 0; line[c]; c++)
+                    if (line[c] == '#') put(tmp, left + c, row0 + r, 15);
+            }
+            memcpy(dst, tmp, 128);
+            memcpy(width_ptr(tbl, e.glyph), wd, 2);
+        } else if (e.base) {
             int bg = e.base - 0x20;
             memcpy(tmp, glyph_ptr(tbl, bg), 128);
             // ink extent of the base letter

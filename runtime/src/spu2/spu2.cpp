@@ -7,6 +7,7 @@
 #include <immintrin.h>
 #include "../savestate.h"
 #include "spu2.h"
+#include "../platform/subtitles.h"
 #include "../memory.h"
 #include "../platform/audio.h"
 #include "../platform/platform.h"
@@ -191,6 +192,8 @@ static inline void next_block(Core& c, Voice& v, int vi) {
     decode_block(v);
 }
 
+bool voice_playing(int core, int voice) { return g_core[core & 1].v[voice % 24].phase != ADSR_OFF; }
+
 u32 voice_nax(int core, int voice) {
     Voice& v = g_core[core & 1].v[voice % 24];
     // address of the data word currently being consumed (header at +0, 4 samples per data word)
@@ -204,6 +207,7 @@ void key_on(int core, u32 mask) {
         Voice& v = c.v[i];
         LOG(LOG_SPU, "kon c%d v%02d ssa=%06x lsa=%06x pitch=%04x vol=%04x/%04x mix=%d%d", core & 1, i, v.ssa * 2, v.lsa * 2, v.pitch,
             v.vol_l.reg, v.vol_r.reg, (c.vmixl >> i) & 1, (c.vmixel >> i) & 1);
+        if (g_log_enabled[LOG_SPU]) subs::on_key_on(core, i, v.ssa * 2);
         v.cur = v.ssa & RAM_MASK;
         v.counter = 0;
         v.prev1 = v.prev2 = 0;

@@ -82,6 +82,10 @@ Funktionen
   (braucht die Widescreen-Ansicht)
 - Scharfe Schrift bei hoher Auflösung, Nachschärfen, Bildfilter
 - Getrennte Lautstärke für Musik, Sprache, Effekte und Filme
+- Untertitel für vertonte Zwischensequenzen und Filme ohne Textfenster (experimentell, vorerst
+  englisch): bisher vom Intro bis zur Nacht auf Alonsos Schiff nach dem Casino mit Bianca; spätere
+  Szenen folgen. Schalter: F1-Menü "Untertitel in Zwischensequenzen" (grandia3.ini: subtitles).
+  Fehler wie falsches Timing oder falsche/fehlende Zeilen bitte melden.
 - HD-Texturpakete: Bilder im Ordner "textures" neben dem Programm ersetzen die Texturen des Spiels
   (ein Paket ist nicht Teil dieses Releases)
 

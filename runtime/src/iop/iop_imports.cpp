@@ -5,6 +5,7 @@
 #include "../memory.h"
 #include "../hw/sif.h"
 #include "../ee/kernel.h"
+#include "../platform/subtitles.h"
 #include <string>
 
 using namespace iop;
@@ -151,6 +152,7 @@ void iop_imp_cdvdman_6(IOPContext* c) {               // Read(lsn, sectors, buf,
     u32 lsn = A(c, 0), n = A(c, 1), buf = A(c, 2);
     LOG(LOG_CDVD, "IOP sceCdRead lsn=%u n=%u -> %08x", lsn, n, buf);
     if (n) ::cdvd::read_sectors(lsn, n, mem::iop_ptr(buf));
+    if (n) subs::on_cd_read(lsn, n, buf);
     RET(c, 1);
 }
 void iop_imp_cdvdman_7(IOPContext* c) { RET(c, 1); }   // Seek

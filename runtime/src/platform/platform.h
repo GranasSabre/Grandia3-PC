@@ -37,6 +37,7 @@ struct Config {
     bool fps60_battle = false;      // with fps60: battles at 60 too (experimental)
     bool movie_skip = true;         // START/SELECT skip every movie (patch 3)
     bool cutscene_skip = true;      // START skips in-engine cutscenes (fast invisible run)
+    bool subtitles = true;          // subtitles for voiced cutscenes (lang\sub_<language>.tsv)
     int state_slot = 1;             // savestate slot for F5 (save) / F9 (load), 1..9
     int sharpen = 60;               // contrast adaptive sharpening of the output, 0 = off .. 100 (F4 toggles)
     bool show_fps = false;
