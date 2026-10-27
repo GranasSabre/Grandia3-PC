@@ -72,6 +72,14 @@ The repository contains no generated code: it is produced from your own disc.
 Useful switches for development are listed in `runtime/src/main.cpp` (`--perf`, `--vu-verify`,
 `--resume-test`, `--log=...`, `--press=...` for scripted input, ...).
 
+## License
+
+The code in this repository (the recompilers, the tools and the runtime) is licensed under the MIT
+license - see [LICENSE](LICENSE). This covers only what was written for this project: *Grandia III*
+and everything in it (game code, text, audio, images, trademarks) belong to Square Enix and Game
+Arts; nothing here grants rights to them, and the language and subtitle files are fan translations
+of game content for private use.
+
 ## Credits
 
 - Widescreen patch values from the PCSX2 patch database (SLUS-21334, by nemesis2000)
