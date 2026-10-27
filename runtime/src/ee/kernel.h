@@ -35,6 +35,7 @@ void wait_idle_hint();  // game is spinning on HW state: let time pass
 EEContext* current_ctx();
 extern double g_native_perf_from;
 extern bool g_force60;   // --force60: frame rate experiment
+void note_game_rate(int r);  // the game called SetFrameRate(r)
 int native_frame_rate();  // the game's own frame rate while the 60 fps option forces 60, else 0
 extern int g_test_step_mode;  // --step-mode=N: forces the frame step mode byte (test)
 extern float g_test_time_scale;  // --time-scale=F: forces the time scale float (test)

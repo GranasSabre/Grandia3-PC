@@ -74,6 +74,7 @@
  "hooks": {
   "0x0013B450": "hook_projection",
   "0x001AD3D0": "hook_frame_rate_float",
+  "0x001AD380": "hook_set_frame_rate",
   "0x001DA6A0": "hook_msg_open",
   "0x0010C480": "hook_printf_a",
   "0x00120F80": "hook_printf_b",

@@ -33,18 +33,27 @@ extern "C" void hook_wait_vsync(EEContext* c) {
 // FrameRate as a float (0x1AD3D0). The field's movement code multiplies the frame step by it to get
 // "frames at its own rate" (walking speed): while the 60 fps option forces 60 these call sites get
 // the rate the game asked for, so the steps halve with the doubled frame count instead of keeping
-// their size (twice the speed). Its other uses divide by it (seconds timers, the main module's
-// fades) and keep the real rate.
+// their size (twice the speed). 0x2D7030 saves the rate to restore it after a scene played at 60
+// (otherwise the forced 60 is restored and taken for the game's own rate). Its other uses divide by
+// it (seconds timers, the main module's fades) and keep the real rate.
 extern "C" void ee_001AD3D0(EEContext* c);
 extern "C" void hook_frame_rate_float(EEContext* c) {
     static const u32 MOVE_SITES[] = {0x220924, 0x2209C4, 0x221214, 0x2212B4, 0x221B04, 0x221BA4, 0x222290, 0x2227CC, 0x22286C,
-                                     0x23B12C, 0x23E344, 0x26A544, 0x282D74, 0x282E14, 0x283500, 0x283A3C, 0x283ADC, 0x295C10};
+                                     0x23B12C, 0x23E344, 0x26A544, 0x282D74, 0x282E14, 0x283500, 0x283A3C, 0x283ADC, 0x295C10,
+                                     0x2D7030};
     ee_001AD3D0(c);
     int r = kernel::native_frame_rate();
     if (!r) return;
     u32 site = c->r[31].uw[0] - 8;  // the jal (FIELD.BIN)
     for (u32 s : MOVE_SITES)
         if (s == site) { c->fpr[0].f = (float)r; return; }
+}
+
+// SetFrameRate (0x1AD380, f12 = frames per second): the 60 fps option keeps the game's own rate
+extern "C" void ee_001AD380(EEContext* c);
+extern "C" void hook_set_frame_rate(EEContext* c) {
+    kernel::note_game_rate((int)c->fpr[12].f);
+    ee_001AD380(c);
 }
 
 // Busy-wait loop of the game (config "idle_loops", e.g. the frame end waiting for the GS FINISH

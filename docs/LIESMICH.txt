@@ -76,7 +76,8 @@ Funktionen
 - Interne Auflösung bis 8-fach (automatisch passend zur Bildschirmhöhe)
 - Widescreen: echte 16:9- oder 16:10-Ansicht oder Ultrawide (21:9, 32:9: Seitenverhältnis
   "Bildschirm"); Menüs und Texte behalten ihr 4:3-Format
-- 60 fps im Feld und (wahlweise) in Kämpfen, bei richtiger Spielgeschwindigkeit
+- 60 fps im Feld und (wahlweise) in Kämpfen, bei richtiger Spielgeschwindigkeit; Zwischensequenzen
+  laufen wie im Original mit 30 fps (synchron zur Sprache)
 - Savestates (9 Slots) überall, auch im Kampf und in Zwischensequenzen
 - Zwischensequenzen und Filme mit START überspringen
 - Große Dialogfenster (1,25-fach samt Schrift) für kleine Bildschirme, auf dem Steam Deck automatisch

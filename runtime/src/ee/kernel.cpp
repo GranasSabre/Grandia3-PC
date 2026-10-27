@@ -47,10 +47,17 @@ bool g_force60 = false;  // --force60 / option fps60
 // (SetFrameRate, applied at the end of a frame). With the option the requests are recorded and
 // FrameRate stays 60; without it the last requested rate is restored.
 static bool battle_loaded();
+extern "C" int g_cinema;  // debug_hooks.cpp: cutscene camera active
 static u8 g_fr_game_rate = 0;   // frame_rate_option: the game's own rate (saved in savestates)
 static bool g_fr_forced = false;  // FrameRate currently forced to 60
 // The game's own frame rate while the 60 fps option forces 60 (else 0): the field turns the frame
 // step into "frames at its rate" with FrameRate (hook_frame_rate_float)
+// SetFrameRate (0x1AD380, hook_set_frame_rate): every rate the game asks for, also the requests it
+// applies in the same frame before frame_rate_option sees them
+void note_game_rate(int r) {
+    log_write(LOG_KERNEL, "game asks for %d fps", r);
+    if (r > 0 && r <= 60) g_fr_game_rate = (u8)r;
+}
 int native_frame_rate() { return g_fr_forced && g_fr_game_rate && g_fr_game_rate != 60 ? g_fr_game_rate : 0; }
 int g_test_step_mode = -1;  // --step-mode=N: test, forces the frame step mode byte
 float g_test_time_scale = 0;  // --time-scale=F: test, forces the time scale float
@@ -62,7 +69,10 @@ static void frame_rate_option() {
     if (request) game_rate = request;
     // battles keep the game's own rate (their timing was only checked in the field)
     bool battle = battle_loaded();  // every vertical blank (also feeds battle_running())
-    bool force = g_force60 && (!battle || platform::config().fps60_battle);
+    // cutscenes keep the game's own rate: their pictures advance by frames while the speech streams
+    // in real time, so a scene that cannot hold 60 fps for a moment falls behind its voice for good
+    bool cutscene = g_cinema != 0 || flight_running();
+    bool force = g_force60 && (!battle || platform::config().fps60_battle) && !cutscene;
     // The game advances a fixed 1/FrameRate per frame: a scene that cannot hold 60 fps runs in slow
     // motion against the streamed music and speech. Such scenes fall back to the game's own rate
     // for a while (doubling on repeated failures). Only sustained slowness counts: loading (disc
@@ -103,7 +113,10 @@ static void frame_rate_option() {
             forced = true;
         }
     } else if (forced) {
-        if (game_rate) rate = game_rate;
+        // back to the game's own rate; cutscenes to the 30 the original shows them at (with the option
+        // on, the game leaves out its last request for 30 before some scenes)
+        u8 back = cutscene ? 30 : game_rate;
+        if (back) rate = back;
         forced = false;
     }
     static u8 logged = 0, logged_mode = 0xFF;
@@ -267,7 +280,6 @@ bool movie_running() { return g_emu_time - g_last_ipu < 1.0; }
 bool battle_running();
 static bool g_battle_now = false;  // last result of battle_loaded()
 bool battle_running() { return g_battle_now; }
-extern "C" int g_cinema;           // debug_hooks.cpp: cutscene camera active
 static bool battle_loaded() {
     static int score = 0;  // > 0: battle
     if (g_disp_battle > g_disp_other) score = std::min(score + 1, 30);

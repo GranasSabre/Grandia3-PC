@@ -71,7 +71,8 @@ Features
 - Widescreen: a real 16:9 or 16:10 view of the 3D scenes, or ultrawide (21:9, 32:9: aspect "Screen");
   menus and text keep their 4:3 proportions
 - 60 fps in the field and (optionally) in battles, with correct game speed; a scene that cannot hold
-  60 fps falls back to 30 by itself
+  60 fps falls back to 30 by itself; in-engine cutscenes run at 30 like the original (in sync with
+  their voices)
 - Savestates (9 slots) everywhere, also in battles and cutscenes
 - Skip cutscenes and movies with START
 - Large dialogue windows (1.25x, text included) for small screens - automatic on the Steam Deck
