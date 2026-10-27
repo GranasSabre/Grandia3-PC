@@ -382,9 +382,7 @@ bool init(int scale) {
     if (scale <= 0) {
         // automatic: native height 448 times S should cover the window height
         int wh = platform::config().window_height;
-        RECT r{};
         if (GetSystemMetrics(SM_CYSCREEN) > 0) wh = std::max(wh, (int)GetSystemMetrics(SM_CYSCREEN));
-        (void)r;
         // One internal line per screen line or more. No supersampling: the rasterizer-ordered views
         // make every extra pixel expensive (x7 for a 1440p screen dropped the flight scene and battles
         // to 42-55 fps even on an RTX 5070, x4 holds 60).
@@ -399,6 +397,8 @@ bool init(int scale) {
             scale = std::min(scale, 2);
         if (ad) ad->Release();
         if (dd) dd->Release();
+        // Steam Deck: its graphics chip held 13-30 fps at x3 (a player's log), x2 fills its 800 lines
+        if (platform::is_steam_deck()) scale = std::min(scale, 2);
     }
     S = std::max(1, std::min(8, scale));
     ID3DBlob *vsb = nullptr, *psb = nullptr, *cs1 = nullptr, *cs2 = nullptr, *vsf = nullptr, *psm = nullptr;

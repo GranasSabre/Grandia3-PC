@@ -224,6 +224,9 @@ int main(int argc, char** argv) {
         else if (a == "--sharpen-ab") gs::gpu::g_sharpen_ab = true;
         else if (a == "--shots-final") platform::g_shots_final = true;
         else if (a.rfind("--hud-log=", 0) == 0) gs::gpu::g_hud_log_at = atof(a.c_str() + 10);
+        else if (a.rfind("--step-mode=", 0) == 0) kernel::g_test_step_mode = atoi(a.c_str() + 12);
+        else if (a.rfind("--time-scale=", 0) == 0) kernel::g_test_time_scale = (float)atof(a.c_str() + 13);
+        else if (a.rfind("--fr-trace=", 0) == 0) { extern int g_fr_trace; g_fr_trace = atoi(a.c_str() + 11); }
         else if (a.rfind("--sharpen=", 0) == 0) cfg.sharpen = atoi(a.c_str() + 10);
         else if (a.rfind("--hd-lod-bias=", 0) == 0) cfg.hd_lod_bias = (float)atof(a.c_str() + 14);
         else if (a.rfind("--window-shot=", 0) == 0) platform::g_overlay_shot_at = atof(a.c_str() + 14);  // the window picture with overlays

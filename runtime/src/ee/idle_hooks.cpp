@@ -9,7 +9,17 @@
 // WaitVSync (0x145440): the counter at 0x216F08 is set to a0 + 1 and decremented by the vblank
 // interrupt handler; the game spins until it reaches 0, then returns CSR bit 13 (field). Same
 // registers on return; the wait passes the loop's resume point (savestates) like the game's loop.
+int g_fr_trace = 0;  // --fr-trace=N: log the frame timing values at the next N WaitVSync calls (test)
 extern "C" void hook_wait_vsync(EEContext* c) {
+    if (g_fr_trace > 0 && kernel::emu_time() > 100.0) {
+        g_fr_trace--;
+        u32 d = mem::rd32(0x218B20), m = mem::rd32(0x218B30);
+        float df, mf;
+        memcpy(&df, &d, 4);
+        memcpy(&mf, &m, 4);
+        log_write(LOG_KERNEL, "fr trace: wait %u, rate %u, request %u, mode %u, delta %.4f, motion %.2f", c->r[4].uw[0], mem::ram[0x1EBAD8],
+                  mem::ram[0x218AE8], mem::ram[0x218AF0], df, mf);
+    }
     mem::wr32(0x216F08, c->r[4].uw[0] + 1);
     while (mem::rd32(0x216F08) != 0) {
         kernel::wait_idle_hint();         // sleeps until the next event (e.g. the vertical blank)
@@ -18,6 +28,23 @@ extern "C" void hook_wait_vsync(EEContext* c) {
     u64 csr = ee_rd64(0x12001000u);
     c->r[1].sd[0] = 0x12000000;
     c->r[2].sd[0] = (s64)((csr >> 13) & 1);
+}
+
+// FrameRate as a float (0x1AD3D0). The field's movement code multiplies the frame step by it to get
+// "frames at its own rate" (walking speed): while the 60 fps option forces 60 these call sites get
+// the rate the game asked for, so the steps halve with the doubled frame count instead of keeping
+// their size (twice the speed). Its other uses divide by it (seconds timers, the main module's
+// fades) and keep the real rate.
+extern "C" void ee_001AD3D0(EEContext* c);
+extern "C" void hook_frame_rate_float(EEContext* c) {
+    static const u32 MOVE_SITES[] = {0x220924, 0x2209C4, 0x221214, 0x2212B4, 0x221B04, 0x221BA4, 0x222290, 0x2227CC, 0x22286C,
+                                     0x23B12C, 0x23E344, 0x26A544, 0x282D74, 0x282E14, 0x283500, 0x283A3C, 0x283ADC, 0x295C10};
+    ee_001AD3D0(c);
+    int r = kernel::native_frame_rate();
+    if (!r) return;
+    u32 site = c->r[31].uw[0] - 8;  // the jal (FIELD.BIN)
+    for (u32 s : MOVE_SITES)
+        if (s == site) { c->fpr[0].f = (float)r; return; }
 }
 
 // Busy-wait loop of the game (config "idle_loops", e.g. the frame end waiting for the GS FINISH

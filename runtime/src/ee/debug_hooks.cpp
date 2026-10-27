@@ -3,6 +3,7 @@
 #include "../common.h"
 #include "../memory.h"
 #include "../platform/platform.h"
+#include "kernel.h"
 #include "ee_recomp.h"
 #include <algorithm>
 #include <cstring>

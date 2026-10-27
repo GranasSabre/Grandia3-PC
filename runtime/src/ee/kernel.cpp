@@ -49,6 +49,11 @@ bool g_force60 = false;  // --force60 / option fps60
 static bool battle_loaded();
 static u8 g_fr_game_rate = 0;   // frame_rate_option: the game's own rate (saved in savestates)
 static bool g_fr_forced = false;  // FrameRate currently forced to 60
+// The game's own frame rate while the 60 fps option forces 60 (else 0): the field turns the frame
+// step into "frames at its rate" with FrameRate (hook_frame_rate_float)
+int native_frame_rate() { return g_fr_forced && g_fr_game_rate && g_fr_game_rate != 60 ? g_fr_game_rate : 0; }
+int g_test_step_mode = -1;  // --step-mode=N: test, forces the frame step mode byte
+float g_test_time_scale = 0;  // --time-scale=F: test, forces the time scale float
 static void frame_rate_option() {
     u8& game_rate = g_fr_game_rate;
     bool& forced = g_fr_forced;
@@ -101,10 +106,15 @@ static void frame_rate_option() {
         if (game_rate) rate = game_rate;
         forced = false;
     }
-    static u8 logged = 0;
-    if (rate != logged) {
-        log_write(LOG_KERNEL, "frame rate %d -> %d (game %d%s)", logged, rate, game_rate, forced ? ", 60 fps option" : "");
+    static u8 logged = 0, logged_mode = 0xFF;
+    if (g_test_step_mode >= 0) mem::ram[0x218AF0] = (u8)g_test_step_mode;
+    if (g_test_time_scale > 0) memcpy(&mem::ram[0x1EBAE0], &g_test_time_scale, 4);
+    u8 mode = mem::ram[0x218AF0];  // frame step mode: 0 fixed, 1 catch-up steps, 2 measured time
+    if (rate != logged || mode != logged_mode) {
+        log_write(LOG_KERNEL, "frame rate %d -> %d, step mode %d, time scale %.2f (game %d%s)", logged, rate, mode, [] { u32 u = mem::rd32(0x1EBAE0); float f; memcpy(&f, &u, 4); return (double)f; }(), game_rate,
+                  forced ? ", 60 fps option" : "");
         logged = rate;
+        logged_mode = mode;
     }
 }
 static double g_next_vblank_e = FIELD_PERIOD + VBLANK_LEN;
