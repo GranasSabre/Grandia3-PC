@@ -77,11 +77,23 @@ def main():
         sources['sub_' + h] = ('/BTL/' + fn, pos, len(img))
     print(f'{len(mods)} modules ({len(subs)} unique sublayers)')
 
+    # battle functions that only the sublayers call: a small wrapper in front of them ends with a
+    # tail jump into them, so the battle module's own discovery merges them with the wrapper
+    battle_mod = next(m for n, p, m in mods if n == 'battle')
+    sub_calls = set()
+    for n, p, m in mods:
+        if n.startswith('sub_'):
+            for a in range(m.code_start, m.code_end, 4):
+                w = m.word(a)
+                if w >> 26 == 3 and battle_mod.base <= ((w & 0x3FFFFFF) << 2) < battle_mod.code_end:
+                    sub_calls.add((w & 0x3FFFFFF) << 2)
+
     hle = {int(k, 16): v for k, v in cfg.get('hle', {}).items()}
     hooks = {int(k, 16): v for k, v in cfg.get('hooks', {}).items()}
     extra = {}
     for k, v in cfg.get('extra_entries', {}).items():
         extra.setdefault(k, []).extend(int(x, 16) for x in v)
+    extra.setdefault('battle', []).extend(sorted(sub_calls))
 
     all_files = []
     manifest = []
