@@ -58,9 +58,10 @@ static u32 g_gr3 = 0;  // EE address of GR3.MDT (0: not found yet)
 static const u32 AREA = 0x00080000, AREA_END = 0x000FFF00;  // unused low EE RAM (IRQ stack ends below)
 
 // extra letters in glyph order 0x98.. (text_hook.cpp EXTRA): German, then French
-static const char* const DE[25] = {"\xC3\xA4", "\xC3\xB6", "\xC3\xBC", "\xC3\x84", "\xC3\x96", "\xC3\x9C", "\xC3\x9F",
+static const char* const DE[26] = {"\xC3\xA4", "\xC3\xB6", "\xC3\xBC", "\xC3\x84", "\xC3\x96", "\xC3\x9C", "\xC3\x9F",
     "\xC3\xA0", "\xC3\xA2", "\xC3\xA7", "\xC3\xA9", "\xC3\xA8", "\xC3\xAA", "\xC3\xAB", "\xC3\xAE", "\xC3\xAF",
-    "\xC3\xB4", "\xC3\xB9", "\xC3\xBB", "\xC3\x80", "\xC3\x87", "\xC3\x89", "\xC3\x88", "\xC3\x8A", "\xC3\x94"};
+    "\xC3\xB4", "\xC3\xB9", "\xC3\xBB", "\xC3\x80", "\xC3\x87", "\xC3\x89", "\xC3\x88", "\xC3\x8A", "\xC3\x94",
+    "\xC3\x82"};
 
 static u32 fnv32(const u8* p, size_t n) {
     u32 h = 0x811C9DC5u;
@@ -93,7 +94,7 @@ static std::vector<u8> encode(const std::string& s, bool field, bool desc, bool 
         if (ch == ' ') { put(field ? 0x20 : 0x80); i++; continue; }
         if (ch < 0x80) { put(ch); i++; continue; }
         int k = -1;
-        for (int j = 0; j < 25; j++)
+        for (int j = 0; j < 26; j++)
             if (s.compare(i, 2, DE[j]) == 0) k = j;
         if (k >= 0) {
             if (field) { out.push_back(0x82); out.push_back((u8)(0xA3 + k)); }

@@ -33,7 +33,7 @@ static const u32 BUF_BASE = 0x00040000, BUF_SLOT = 0x1000, BUF_SLOTS = 16;  // u
 static u32 g_slot = 0;
 
 // Extra letters: glyph slots (unused kana) and the letters they are made from. German 0x98..0x9E
-// (dots as before), French 0x9F..0xB0 (accent templates, see fr_glyphs.py for a preview).
+// (dots as before), French 0x9F..0xB1 (accent templates, see fr_glyphs.py for a preview).
 // accent: 'd' dots, 'a' acute, 'g' grave, 'c' circumflex, 'k' cedilla, 0 = ß
 struct Extra { const char* utf8; u8 glyph; char base; bool upper; char accent; bool german; };
 static const Extra EXTRA[] = {
@@ -46,6 +46,7 @@ static const Extra EXTRA[] = {
     {"\xC3\xB4", 0xA8, 'o', false, 'c', false}, {"\xC3\xB9", 0xA9, 'u', false, 'g', false}, {"\xC3\xBB", 0xAA, 'u', false, 'c', false},
     {"\xC3\x80", 0xAB, 'A', true, 'g', false},  {"\xC3\x87", 0xAC, 'C', true, 'k', false},  {"\xC3\x89", 0xAD, 'E', true, 'a', false},
     {"\xC3\x88", 0xAE, 'E', true, 'g', false},  {"\xC3\x8A", 0xAF, 'E', true, 'c', false},  {"\xC3\x94", 0xB0, 'O', true, 'c', false},
+    {"\xC3\x82", 0xB1, 'A', true, 'c', false},
 };
 
 // French accent templates: columns cx-2..cx+3 (cx = left of the two centre columns), '#' = ink

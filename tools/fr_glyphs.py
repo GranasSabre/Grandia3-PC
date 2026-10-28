@@ -1,6 +1,6 @@
 # French letters for the game font: prototype of the runtime's glyph builder (text_hook.cpp
 # make_glyphs) plus a preview.  python fr_glyphs.py <GR3.MDT> <out.png> [text]
-# Extra glyphs live in unused kana slots: German 0x98..0x9E, French 0x9F..0xB0 (script byte /
+# Extra glyphs live in unused kana slots: German 0x98..0x9E, French 0x9F..0xB1 (script byte /
 # font code = glyph + 0x20, field menu Shift-JIS 82 <glyph + 0x0B>).
 # A letter is made from the game's own base letter plus an accent template; capitals are squeezed
 # by two rows (the two rows most like their upper neighbour) to make room above.
@@ -13,7 +13,7 @@ FR = [('à', 0x9F, 'a', 'grave'), ('â', 0xA0, 'a', 'circ'), ('ç', 0xA1, 'c', '
       ('ë', 0xA5, 'e', 'dots'), ('î', 0xA6, 'i', 'circ'), ('ï', 0xA7, 'i', 'dots'),
       ('ô', 0xA8, 'o', 'circ'), ('ù', 0xA9, 'u', 'grave'), ('û', 0xAA, 'u', 'circ'),
       ('À', 0xAB, 'A', 'grave'), ('Ç', 0xAC, 'C', 'cedil'), ('É', 0xAD, 'E', 'acute'),
-      ('È', 0xAE, 'E', 'grave'), ('Ê', 0xAF, 'E', 'circ'), ('Ô', 0xB0, 'O', 'circ')]
+      ('È', 0xAE, 'E', 'grave'), ('Ê', 0xAF, 'E', 'circ'), ('Ô', 0xB0, 'O', 'circ'), ('Â', 0xB1, 'A', 'circ')]
 
 # templates: columns cx-2..cx+3 (cx = left of the two centre columns); '#' = full ink
 LOW = {'acute': ['...##.', '..##..', '.##...'], 'grave': ['.##...', '..##..', '...##.'],
