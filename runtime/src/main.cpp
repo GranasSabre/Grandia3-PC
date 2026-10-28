@@ -248,6 +248,7 @@ int main(int argc, char** argv) {
         else if (a == "--text-log") { extern void texthook_set_log(bool); texthook_set_log(true); }
         else if (a == "--force60") cfg.fps60 = true;
         else if (a == "--force60-battle") cfg.fps60 = cfg.fps60_battle = true;
+        else if (a == "--force60-all") { cfg.fps60 = cfg.fps60_battle = true; kernel::g_test_force60_all = true; }
         else if (a.rfind("--state-save=", 0) == 0 || a.rfind("--state-load=", 0) == 0) {
             // test: --state-save=SEC:SLOT / --state-load=SEC:SLOT (host seconds after start)
             double at = 0;

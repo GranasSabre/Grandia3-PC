@@ -59,6 +59,7 @@ void note_game_rate(int r) {
     if (r > 0 && r <= 60) g_fr_game_rate = (u8)r;
 }
 int native_frame_rate() { return g_fr_forced && g_fr_game_rate && g_fr_game_rate != 60 ? g_fr_game_rate : 0; }
+bool g_test_force60_all = false;  // --force60-all: test, 60 also in cutscenes and without fallback
 int g_test_step_mode = -1;  // --step-mode=N: test, forces the frame step mode byte
 float g_test_time_scale = 0;  // --time-scale=F: test, forces the time scale float
 static void frame_rate_option() {
@@ -71,7 +72,7 @@ static void frame_rate_option() {
     bool battle = battle_loaded();  // every vertical blank (also feeds battle_running())
     // cutscenes keep the game's own rate: their pictures advance by frames while the speech streams
     // in real time, so a scene that cannot hold 60 fps for a moment falls behind its voice for good
-    bool cutscene = g_cinema != 0 || flight_running();
+    bool cutscene = (g_cinema != 0 || flight_running()) && !g_test_force60_all;
     bool force = g_force60 && (!battle || platform::config().fps60_battle) && !cutscene;
     // The game advances a fixed 1/FrameRate per frame: a scene that cannot hold 60 fps runs in slow
     // motion against the streamed music and speech. Such scenes fall back to the game's own rate
@@ -104,7 +105,7 @@ static void frame_rate_option() {
         bad = g_emu_time < hold_until + 1.0 ? 0 : -2;  // a retry after a fallback is judged at once
         win_flips = gs::flip_count(); win_ipu = ipu::command_count(); win_sect = ::cdvd::sectors_read();
     }
-    if (g_emu_time < hold_until) force = false;
+    if (g_emu_time < hold_until && !g_test_force60_all) force = false;
     if (force) {
         if (rate != 0) {                    // set once the INI was read
             if (rate != 60) game_rate = rate;  // the game's own rate (also a request applied before we saw it)

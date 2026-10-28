@@ -983,6 +983,9 @@ static bool g_bhud = false;       // batch of widescreen-corrected 2D elements
 static bool g_ball_sprites = true;            // batch consists of sprites only
 static std::vector<PixRect> g_bsprites;       // their exact pixel rectangles
 static int g_bprims = 0;
+// batch break diagnostics (stats line): 0 self, 1 hud, 2 same state, 3.. changed field groups, 14 clut, 15 all flushes
+static u64 st_why[16];
+static DrawState g_prev_raw;
 static u32 g_clut[512];
 static bool g_clut_valid = false;
 
@@ -1013,6 +1016,45 @@ struct DrawCB {
 };
 
 static void flush();
+
+// GS memory blocks [lo, hi) of the page rows holding rows y0..y1 of a buffer (hi may pass the end of
+// memory, which wraps)
+static void row_blocks(u32 bp, u32 bw, u32 psm, int y0, int y1, u32& lo, u32& hi) {
+    int ph = 32, pw = 64;
+    switch (psm) {
+    case PSMCT16: case PSMCT16S: case PSMZ16: case PSMZ16S: ph = 64; break;
+    case PSMT8: case PSMT8H: ph = 64; pw = 128; break;
+    case PSMT4: case PSMT4HL: case PSMT4HH: ph = 128; pw = 128; break;
+    }
+    if (psm == PSMT8H || psm == PSMT4HL || psm == PSMT4HH) { ph = 32; pw = 64; }  // stored in 32-bit pixels
+    u32 ppr = std::max<u32>(1, (bw * 64 + pw - 1) / pw);
+    y0 = std::max(y0, 0);
+    y1 = std::max(y1, y0 + 1);
+    lo = bp + (u32)(y0 / ph) * ppr * 32;
+    hi = bp + (u32)((y1 + ph - 1) / ph) * ppr * 32;
+}
+// Does a primitive of this state sample memory that its own batch can write (color or depth inside
+// the scissor rows)? Only then must the primitives be drawn one at a time. The check is by memory, so
+// a texture stored next to a buffer (e.g. right after a z buffer whose surface was made taller) is no
+// feedback.
+static bool samples_own_writes(const DrawState& ds) {
+    int th = 1 << ds.th, t0 = 0, t1 = th;
+    if (ds.wmt == 2) { t0 = std::min<int>(ds.minv, th - 1); t1 = std::min<int>(ds.maxv + 1, th); }
+    u32 tl, thi;
+    row_blocks(ds.tbp, ds.tbw, ds.tpsm, t0, std::max(t1, t0 + 1), tl, thi);
+    auto hit = [&](u32 bp, u32 psm) {
+        u32 l, h;
+        row_blocks(bp, ds.fbw, psm, ds.scay0, ds.scay1 + 1, l, h);
+        // compare in both orders of the 16384-block wrap
+        for (int k = -1; k <= 1; k++) {
+            s64 o = (s64)k * 16384;
+            if ((s64)tl < (s64)h + o && (s64)l + o < (s64)thi) return true;
+        }
+        return false;
+    };
+    if (ds.fbmsk != 0xFFFFFFFFu && hit(ds.fbp, ds.fpsm)) return true;
+    return ds.zte && !ds.zmsk && ds.ztst != 0 && hit(ds.zbp, ds.zpsm);
+}
 
 // HD replacement of a decoded texture: 32-bit texels at k times the size, own mip levels
 struct Rep {
@@ -1277,6 +1319,7 @@ static void flush() {
         g_bprims = 0;
         return;
     }
+    st_why[15]++;
     const DrawState& ds = g_bds;
     Layout fl = layout_of(ds.fpsm);
     if (fl == L_NONE || fl == L_Z32 || fl == L_Z16 || fl == L_Z16S) {
@@ -1557,6 +1600,31 @@ void on_draw(const DrawState& ds, u32 state_id, int prim, const Vertex* vin) {
     bool hud = hud_transform(ds, prim, vin, hv);
     const Vertex* v = hud ? hv : vin;
     if (state_id != g_bid || hud != g_bhud || g_bself) {
+        if (g_bvalid && !g_verts.empty()) {
+            const DrawState& p = g_prev_raw;
+            if (g_bself) st_why[0]++;
+            else if (hud != g_bhud) st_why[1]++;
+            else {
+                bool d[11] = {
+                    p.fbp != ds.fbp || p.fbw != ds.fbw || p.fpsm != ds.fpsm || p.fbmsk != ds.fbmsk,
+                    p.zbp != ds.zbp || p.zpsm != ds.zpsm || p.zmsk != ds.zmsk || p.zte != ds.zte || p.ztst != ds.ztst,
+                    p.ate != ds.ate || p.atst != ds.atst || p.aref != ds.aref || p.afail != ds.afail || p.date != ds.date || p.datm != ds.datm,
+                    p.abe != ds.abe || p.ba != ds.ba || p.bb != ds.bb || p.bc != ds.bc || p.bd != ds.bd || p.bfix != ds.bfix || p.pabe != ds.pabe ||
+                        p.fba != ds.fba || p.colclamp != ds.colclamp,
+                    p.tbp != ds.tbp || p.tbw != ds.tbw || p.tpsm != ds.tpsm || p.tw != ds.tw || p.th != ds.th,
+                    p.tcc != ds.tcc || p.tfx != ds.tfx || p.cpsm != ds.cpsm || p.csa != ds.csa || p.ta0 != ds.ta0 || p.ta1 != ds.ta1 || p.aem != ds.aem,
+                    p.wms != ds.wms || p.wmt != ds.wmt || p.minu != ds.minu || p.maxu != ds.maxu || p.minv != ds.minv || p.maxv != ds.maxv,
+                    p.mag_linear != ds.mag_linear || p.min_linear != ds.min_linear || p.lcm != ds.lcm || p.mxl != ds.mxl || p.lodl != ds.lodl ||
+                        p.mmin != ds.mmin || p.mtba != ds.mtba || p.miptbp1 != ds.miptbp1 || p.miptbp2 != ds.miptbp2 || p.lodk != ds.lodk,
+                    p.fge != ds.fge || p.fogcol != ds.fogcol || p.iip != ds.iip || p.fst != ds.fst || p.tme != ds.tme,
+                    p.scax0 != ds.scax0 || p.scax1 != ds.scax1 || p.scay0 != ds.scay0 || p.scay1 != ds.scay1,
+                    p.dthe != ds.dthe || memcmp(p.dimx, ds.dimx, sizeof p.dimx) != 0};
+                bool any = false;
+                for (int i = 0; i < 11; i++) if (d[i]) { st_why[3 + i]++; any = true; }
+                if (!any) st_why[2]++;
+            }
+        }
+        g_prev_raw = ds;
         flush();
         g_bds = ds;
         g_bhud = hud;
@@ -1577,14 +1645,8 @@ void on_draw(const DrawState& ds, u32 state_id, int prim, const Vertex* vin) {
         g_bu1 = g_bv1 = -1e30f;
         g_ball_sprites = true;
         g_bsprites.clear();
-        // a texture in the memory of the target: each primitive must see the previous one's result
-        g_bself = false;
-        if (ds.tme) {
-            Surface* f = find_surface(ds.fbp, ds.fbw, layout_of(ds.fpsm));
-            Surface* z = ds.zte ? find_surface(ds.zbp, ds.fbw, layout_of(ds.zpsm)) : nullptr;
-            u32 tb = ds.tbp & 16383;
-            g_bself = (f && f->block_cell[tb] >= 0) || (z && z->block_cell[tb] >= 0);
-        }
+        // a texture in memory the batch can write: each primitive must see the previous one's result
+        g_bself = ds.tme && samples_own_writes(ds);
     }
     const DrawState& b = g_bds;
     if (prim != 6) g_ball_sprites = false;
@@ -1673,6 +1735,7 @@ void on_clut_load(u64 tex0, u64 texclut) {
     memcpy(tmp, g_clut, sizeof(tmp));
     exec_clut_load_m(shadow, tmp, tex0, texclut);
     if (memcmp(tmp, g_clut, sizeof(tmp)) != 0 || !g_clut_valid) {
+        if (!g_verts.empty()) st_why[14]++;
         flush();
         memcpy(g_clut, tmp, sizeof(tmp));
         ctx->UpdateSubresource(g_clut_buf, 0, nullptr, g_clut, 0, 0);
@@ -1957,7 +2020,7 @@ const u32* memory() { return shadow; }
 std::string stats() {
     static u64 l_gcopy, l_skip, l_rehash;
     static u64 l_draws, l_batches, l_refresh, l_rbc, l_rb, l_dec, l_hits, l_stale, l_self, l_rep, l_dump;
-    char b[700];
+    char b[1200];
     snprintf(b, sizeof(b), "gpu: %llu prims in %llu batches, refresh %llu cells (gpu copies %llu, skipped %llu), readback %llu cells in %llu, tex decode %llu hit %llu (same data %llu) stale %llu, self %llu, surfaces %d, compare bad %llu/%llu, hd textures %llu, dumped %llu",
              (unsigned long long)(st_draws - l_draws), (unsigned long long)(st_batches - l_batches), (unsigned long long)(st_refresh_cells - l_refresh),
              (unsigned long long)(st_gpu_copy_cells - l_gcopy), (unsigned long long)(st_skip_cells - l_skip),
@@ -1965,6 +2028,20 @@ std::string stats() {
              (unsigned long long)(st_tex_hits - l_hits), (unsigned long long)(st_tex_rehash - l_rehash), (unsigned long long)(st_stale_texels - l_stale), (unsigned long long)(st_self - l_self),
              (int)std::count_if(g_surf.begin(), g_surf.end(), [](Surface* s) { return s != nullptr; }), (unsigned long long)g_cmp_bad_frames,
              (unsigned long long)g_cmp_frames, (unsigned long long)(st_tex_replaced - l_rep), (unsigned long long)(st_tex_dumped - l_dump));
+    {
+        static u64 l_why[16];
+        u64 w[16];
+        for (int i = 0; i < 16; i++) { w[i] = st_why[i] - l_why[i]; l_why[i] = st_why[i]; }
+        u64 ondraw = w[0] + w[1] + w[2];
+        for (int i = 3; i < 14; i++) ondraw += 0;
+        char t[400];
+        snprintf(t, sizeof t, " | breaks: all %llu self %llu hud %llu same %llu clut %llu; fields frame %llu z %llu test %llu blend %llu tex %llu texmode %llu clamp %llu filter %llu misc %llu scissor %llu dither %llu",
+                 (unsigned long long)w[15], (unsigned long long)w[0], (unsigned long long)w[1], (unsigned long long)w[2], (unsigned long long)w[14],
+                 (unsigned long long)w[3], (unsigned long long)w[4], (unsigned long long)w[5], (unsigned long long)w[6], (unsigned long long)w[7],
+                 (unsigned long long)w[8], (unsigned long long)w[9], (unsigned long long)w[10], (unsigned long long)w[11], (unsigned long long)w[12],
+                 (unsigned long long)w[13]);
+        strncat(b, t, sizeof(b) - strlen(b) - 1);
+    }
     l_rep = st_tex_replaced;
     l_dump = st_tex_dumped;
     l_gcopy = st_gpu_copy_cells;

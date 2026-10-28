@@ -1444,6 +1444,7 @@ void draw_primitive(int prim, const Vertex* v) {
     int nv = prim == 3 ? 3 : prim == 0 ? 1 : 2;
 
     // snapshot the draw state when it changed (CLUTs live per worker, loaded in queue order)
+    if (changed && g_state_cur >= 0 && same_draw_state(g_states[g_state_cur].ds, ds)) changed = false;
     if (changed || g_state_cur < 0) alloc_state(ds);
     StateSlot& slot = g_states[g_state_cur];
 
