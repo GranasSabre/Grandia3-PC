@@ -191,6 +191,7 @@ void load_config(const std::string& path) {
         else if (k == "remove_letterbox") g_cfg.remove_letterbox = iv != 0;
         else if (k == "hud_fix") g_cfg.hud_fix = iv != 0;
         else if (k == "vibration") g_cfg.vibration = iv != 0;
+        else if (k == "camera_invert_x") g_cfg.camera_invert_x = iv != 0;
         else if (k == "disc") g_cfg.disc = iv == 2 ? 2 : 1;
         else if (k == "lod_scale") g_cfg.lod_scale = iv != 0;
         else if (k == "hd_textures") g_cfg.hd_textures = iv != 0;
@@ -262,7 +263,7 @@ void save_config() {
     fprintf(f, "; write every new texture to the folder \"texdump\" (for making texture packs)\ntexture_dump = %d\n", g_cfg.texture_dump);
     fprintf(f, "; HD textures: detail level bias (negative = sharper, e.g. -0.5)\nhd_lod_bias = %.2f\n", g_cfg.hd_lod_bias);
     fprintf(f, "; 3D geometry and graphics commands on a processor core of their own (faster on most PCs)\ngs_thread = %d\n", g_cfg.gs_thread);
-    fprintf(f, "; language of the game text and menus: en = original English, de = German (lang\\de.tsv); takes effect at the next start\nlanguage = %s\n", g_cfg.language.c_str());
+    fprintf(f, "; language of the game text and menus: en = original English, de = German (lang\\de.tsv), fr = French (lang\\fr.tsv); takes effect at the next start\nlanguage = %s\n", g_cfg.language.c_str());
     fprintf(f, "; larger conversation windows and text (widescreen only): -1 = automatic (on with a Steam Deck), 0 = off, 1 = on\nbig_text = %d\n", g_cfg.big_text);
     fprintf(f, "; their size factor, 1.0 .. 1.6\ntext_scale = %.2f\n", g_cfg.text_scale);
     fprintf(f, "; sharpening of the picture (contrast adaptive sharpening): 0 = off .. 100 (F4 toggles in game)\nsharpen = %d\n", g_cfg.sharpen);
@@ -285,6 +286,7 @@ void save_config() {
     for (int i = 0; i < 16; i++) fprintf(f, "key_%s = 0x%02X\n", KEYNAMES[i], g_cfg.keymap[i]);
     fprintf(f, "; hold together with the direction keys to push the left analog stick fully (run)\nkey_run = 0x%02X\n", g_cfg.key_run);
     fprintf(f, "; controller vibration (0 = off)\nvibration = %d\n", g_cfg.vibration);
+    fprintf(f, "; 1 = right stick left/right reversed (the camera turns the other way; L1/R1 stay)\ncamera_invert_x = %d\n", g_cfg.camera_invert_x);
     fprintf(f, "; controller buttons: a b x y lb rb lt rt start back lthumb rthumb dpad_up dpad_down dpad_left dpad_right none\n");
     for (int i = 0; i < 16; i++) {
         const char* n = "none";
@@ -1167,7 +1169,7 @@ void run_message_loop() {
 // ---------------------------------------------------------------------------
 // Input
 // ---------------------------------------------------------------------------
-struct AutoPress { double t; u32 mask; double dur; };  // bits 16..19: left stick up/right/down/left
+struct AutoPress { double t; u32 mask; double dur; };  // bits 16..19: left stick up/right/down/left, 20/21: right stick right/left
 static std::vector<AutoPress> g_autopress;
 
 void add_autopress(const std::string& spec) {
@@ -1186,8 +1188,8 @@ void add_autopress(const std::string& spec) {
             double dur = colon2 != std::string::npos ? atof(item.c_str() + colon2 + 1) : 0.25;
             for (int i = 0; i < 16; i++)
                 if (n == NAMES[i]) g_autopress.push_back({t, 1u << i, dur});
-            static const char* STICK[4] = {"lup", "lright", "ldown", "lleft"};
-            for (int i = 0; i < 4; i++)
+            static const char* STICK[6] = {"lup", "lright", "ldown", "lleft", "rright", "rleft"};
+            for (int i = 0; i < 6; i++)
                 if (n == STICK[i]) g_autopress.push_back({t, 1u << (16 + i), dur});
         }
         if (comma == std::string::npos) break;
@@ -1312,10 +1314,12 @@ static PadState read_pad_now(int port) {
         s.rx = ax(xs.Gamepad.sThumbRX);
         s.ry = ay(xs.Gamepad.sThumbRY);
     }
-    if (auto_stick) {
+    if (auto_stick & 15) {
         s.lx = (auto_stick & 2) ? 0xFF : (auto_stick & 8) ? 0x00 : 0x80;
         s.ly = (auto_stick & 4) ? 0xFF : (auto_stick & 1) ? 0x00 : 0x80;
     }
+    if (auto_stick & 48) s.rx = (auto_stick & 16) ? 0xFF : 0x00;
+    if (g_cfg.camera_invert_x) s.rx = (u8)std::min(255, 256 - s.rx);  // center 128 stays
     {
         // START (fresh press) during a cutscene skips it: the game's own Scene Skip (SELECT, enabled
         // through hook_scene_skip_enabled) jumps to the end of the scene at once; a scene the game

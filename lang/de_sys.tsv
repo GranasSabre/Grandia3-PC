@@ -4490,9 +4490,9 @@ a	2e1550	2ee2e0	2193c9bc	KI-Taktik
 a	2e1554	2ee2f0	9331c090	Einstellung A
 a	2e1558	2ee300	9631c549	Einstellung B
 a	2e155c	2ee310	f819f303	Manuell
-a	2e1560	2ee318	e1a229bf	Ehrenhaft
-a	2e1564	2ee328	883cad15	Rasend
-a	2e1568	2ee330	21ad5173	Clever
+a	2e1560	2ee318	e1a229bf	Sparsam
+a	2e1564	2ee328	883cad15	Offensiv
+a	2e1568	2ee330	21ad5173	Flexibel
 a	2e156c	2ee340	f823fc9d	Kampfstatistik
 a	2e1570	2ee350	bc142c7a	Max. Schaden
 a	2e1574	2ee360	2d61a80a	Max. Kombotreffer
@@ -4806,9 +4806,9 @@ i	388e4e	22	bb2b8d5e	Du hast keine Skills.
 i	388e70	8	889f754b	Ändern
 i	388e78	10	26c0a538	Ausführen
 i	388e88	a	f819f303	Manuell
-i	388e92	a	f3f5999f	Ehrenhaft
-i	388e9c	a	883cad15	Rasend
-i	388ea6	a	21ad5173	Clever
+i	388e92	a	f3f5999f	Sparsam
+i	388e9c	a	883cad15	Offensiv
+i	388ea6	a	21ad5173	Flexibel
 c	389040	388eb0	250e365d	Keine KI. Alle Befehle gibt\nder Spieler selbst ein.
 c	389044	388ef8	35999eb	Sparsame Taktik, die im Kampf\nnur Kombos und Kritische\nAngriffe einsetzt.
 c	389048	388f60	12d1930b	Angriffslustige Taktik, die\nstarke Kampftechniken und\nMagie einsetzt.

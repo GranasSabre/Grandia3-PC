@@ -72,6 +72,18 @@ static void raise_event(int bit, int mask_bit) {
     if (!(g_imr.load(std::memory_order_relaxed) & (1u << mask_bit))) gsp::post_intc(kernel::INTC_GS);
 }
 
+// after loading a savestate: a SIGNAL / FINISH event that is set and not masked but has no interrupt
+// pending was saved between the GS and the interrupt (savestates of older versions); raise it
+void reraise_events() {
+    u64 csr = g_csr.load();
+    u32 imr = g_imr.load();
+    bool ev = ((csr & 1) && !(imr & (1u << 8))) || ((csr & 2) && !(imr & (1u << 9)));
+    if (ev && !(kernel::intc_stat & (1u << kernel::INTC_GS))) {
+        log_write(LOG_MAIN, "savestate: GS event without interrupt (csr %llx): raised", (unsigned long long)csr);
+        kernel::raise_intc(kernel::INTC_GS);
+    }
+}
+
 void present_frame();
 
 void on_vblank_start() {

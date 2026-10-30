@@ -419,8 +419,9 @@ bool init(int scale) {
         {"STQ", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 28, D3D11_INPUT_PER_VERTEX_DATA, 0},
         {"FOG", 0, DXGI_FORMAT_R32_FLOAT, 0, 40, D3D11_INPUT_PER_VERTEX_DATA, 0},
         {"FCOL", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 44, D3D11_INPUT_PER_VERTEX_DATA, 0},
+        {"STATE", 0, DXGI_FORMAT_R32G32_UINT, 0, 60, D3D11_INPUT_PER_VERTEX_DATA, 0},
     };
-    if (FAILED(dev->CreateInputLayout(il, 6, vsb->GetBufferPointer(), vsb->GetBufferSize(), &g_il))) return false;
+    if (FAILED(dev->CreateInputLayout(il, 7, vsb->GetBufferPointer(), vsb->GetBufferSize(), &g_il))) return false;
     release(vsb); release(psb); release(cs1); release(cs2); release(vsf); release(psm);
 
     g_cb = make_cb(512);
@@ -815,7 +816,7 @@ struct TexEntry {
     u64 novel_frame = 0;       // last frame its content was new (movies: new every frame)
     int novel_run = 0;
 };
-static u64 st_tex_rehash = 0, st_tex_replaced = 0, st_tex_dumped = 0;
+static u64 st_tex_rehash = 0, st_tex_replaced = 0, st_tex_dumped = 0, st_rep_created = 0;
 
 // content of the blocks in the shadow copy (detects re-uploads of identical data)
 static u64 blocks_hash(const std::vector<u16>& blocks) {
@@ -968,8 +969,9 @@ struct GV {
     float s, t, q;
     float fog;
     float fr, fg, fb, fa;
+    u32 st0, st1;  // state of the primitive that may change within a batch (prim_state)
 };
-static_assert(sizeof(GV) == 60, "vertex layout");
+static_assert(sizeof(GV) == 68, "vertex layout");
 
 static std::vector<GV> g_verts;
 static DrawState g_bds;           // state of the current batch
@@ -978,12 +980,20 @@ static bool g_bvalid = false;
 static int g_bx0, g_by0, g_bx1, g_by1;    // destination bounds (native pixels, clipped)
 static float g_bu0, g_bv0, g_bu1, g_bv1;  // texture coordinate bounds (texels)
 static bool g_bself = false;      // one primitive per batch (texture overlaps the target)
+static bool g_bself_tex = false;  // the batch's texture state samples its own target (when a primitive textures)
+static bool g_btme = false;       // a primitive of the batch is textured
+static bool g_bover = true;       // every primitive overwrites its pixels without reading them (no test, no blending)
+static u32 g_ps0 = 0, g_ps1 = 0;  // per-primitive state of the current draw state (prim_state)
+bool g_no_batch_join = false;     // --no-batch-join: a batch per draw state (A/B test of joining)
+bool g_frame_hashes = false;      // --frame-hashes: hash of every presented picture in the log (A/B tests)
 static bool g_cfg_mips = true;    // use the game's mip levels
 static bool g_bhud = false;       // batch of widescreen-corrected 2D elements
 static bool g_ball_sprites = true;            // batch consists of sprites only
 static std::vector<PixRect> g_bsprites;       // their exact pixel rectangles
 static int g_bprims = 0;
-// batch break diagnostics (stats line): 0 self, 1 hud, 2 same state, 3.. changed field groups, 14 clut, 15 all flushes
+static double g_barea = 0;        // --gpu-profile: summed area of the batch's primitives (native pixels)
+// batch break diagnostics (stats line): 0 self, 1 hud, 2 state changes joining the batch, 3.. changed field
+// groups, 14 clut, 15 all flushes
 static u64 st_why[16];
 static DrawState g_prev_raw;
 static u32 g_clut[512];
@@ -1016,6 +1026,109 @@ struct DrawCB {
 };
 
 static void flush();
+
+// --gpu-profile: GPU time of every draw (a timestamp after each one; meaningful while the GPU is the
+// bottleneck, e.g. at a high internal scale), summed per kind of draw (target, texture source) and logged
+// every 3 seconds: where the GPU time of a scene goes
+bool g_gpu_profile = false;
+struct ProfRec { u64 key; u32 prims, area; };
+struct ProfFrame {
+    static const int Q = 4096;
+    ID3D11Query* dis = nullptr;
+    ID3D11Query* ts[Q + 2] = {};
+    ProfRec rec[Q + 1];
+    int n = 0;
+    bool open = false;
+};
+struct ProfSum { double ms = 0; u64 draws = 0, prims = 0, area = 0; };
+static ProfFrame* g_pf = nullptr;
+static int g_pf_cur = -1;
+static void prof_draw(u64 key, u32 prims, u32 area) {
+    if (g_pf_cur < 0) return;
+    ProfFrame& f = g_pf[g_pf_cur];
+    if (f.n >= ProfFrame::Q) return;
+    ctx->End(f.ts[f.n + 1]);
+    f.rec[f.n++] = {key, prims, area};
+}
+static void prof_frame() {
+    static const int N = 4;
+    static std::map<u64, ProfSum> sums;
+    static double last_log = 0, frame_ms = 0;
+    static int frames = 0;
+    if (!g_pf) {
+        g_pf = new ProfFrame[N];
+        for (int i = 0; i < N; i++) {
+            D3D11_QUERY_DESC d{D3D11_QUERY_TIMESTAMP_DISJOINT, 0};
+            dev->CreateQuery(&d, &g_pf[i].dis);
+            d.Query = D3D11_QUERY_TIMESTAMP;
+            for (auto& q : g_pf[i].ts) dev->CreateQuery(&d, &q);
+        }
+    }
+    if (g_pf_cur >= 0) {
+        // the composition and display of this frame as the last entry
+        ProfFrame& f = g_pf[g_pf_cur];
+        ctx->End(f.ts[f.n + 1]);
+        f.rec[f.n++] = {~0ull, 0, 0};
+        ctx->End(f.dis);
+        f.open = true;
+    }
+    for (int i = 0; i < N; i++) {
+        ProfFrame& f = g_pf[i];
+        if (!f.open) continue;
+        D3D11_QUERY_DATA_TIMESTAMP_DISJOINT dj;
+        if (ctx->GetData(f.dis, &dj, sizeof dj, D3D11_ASYNC_GETDATA_DONOTFLUSH) != S_OK) continue;
+        std::vector<u64> t(f.n + 1);
+        bool ok = !dj.Disjoint;
+        for (int k = 0; k <= f.n && ok; k++)
+            ok = ctx->GetData(f.ts[k], &t[k], sizeof(u64), D3D11_ASYNC_GETDATA_DONOTFLUSH) == S_OK;
+        f.open = false;
+        if (!ok) continue;
+        double tick = 1000.0 / (double)dj.Frequency;
+        for (int k = 0; k < f.n; k++) {
+            ProfSum& s = sums[f.rec[k].key];
+            s.ms += (double)(t[k + 1] - t[k]) * tick;
+            s.draws++;
+            s.prims += f.rec[k].prims;
+            s.area += f.rec[k].area;
+        }
+        frame_ms += (double)(t[f.n] - t[0]) * tick;
+        frames++;
+    }
+    // next frame: the first slot not waiting for results
+    g_pf_cur = -1;
+    for (int i = 0; i < N; i++)
+        if (!g_pf[i].open) { g_pf_cur = i; break; }
+    if (g_pf_cur >= 0) {
+        ProfFrame& f = g_pf[g_pf_cur];
+        f.n = 0;
+        ctx->Begin(f.dis);
+        ctx->End(f.ts[0]);
+    }
+    double now = host_time_sec();
+    if (now - last_log >= 3.0 && frames > 0) {
+        std::vector<std::pair<double, u64>> v;
+        for (auto& [k, s] : sums) v.push_back({s.ms, k});
+        std::sort(v.rbegin(), v.rend());
+        log_write(LOG_GS, "gpu profile: %.2f ms per frame over %d frames, %zu kinds", frame_ms / frames, frames, sums.size());
+        for (size_t i = 0; i < v.size() && i < 12; i++) {
+            const ProfSum& s = sums[v[i].second];
+            u64 k = v[i].second;
+            static const char* kind[4] = {"none", "decoded", "surface", "hd"};
+            if (k == ~0ull) {
+                log_write(LOG_GS, "  %6.2f ms  present", s.ms / frames);
+                continue;
+            }
+            log_write(LOG_GS, "  %6.2f ms  fb %05x/%u psm %02x  tex %s %05x psm %02x  %.1f draws %.0f prims %.0f kpx (primitive area) per frame",
+                      s.ms / frames, (u32)(k & 0x3FFF), (u32)(k >> 14) & 63, (u32)(k >> 20) & 63, kind[(k >> 26) & 3],
+                      (u32)(k >> 28) & 0x3FFF, (u32)(k >> 42) & 63, (double)s.draws / frames, (double)s.prims / frames,
+                      (double)s.area / frames / 1000.0);
+        }
+        sums.clear();
+        frames = 0;
+        frame_ms = 0;
+        last_log = now;
+    }
+}
 
 // GS memory blocks [lo, hi) of the page rows holding rows y0..y1 of a buffer (hi may pass the end of
 // memory, which wraps)
@@ -1166,6 +1279,7 @@ static void create_rep(Rep& r, const texrep::Image& img, u32 tw, u32 th, u64 key
     }
     ctx->UpdateSubresource(r.tex, 0, nullptr, img.px.data(), img.w * 4, 0);
     ctx->GenerateMips(r.srv);
+    st_rep_created++;
     r.k = k;
     r.bytes = (size_t)img.w * img.h * 4 * 4 / 3;
     g_rep_bytes += r.bytes;
@@ -1337,20 +1451,17 @@ static void flush() {
     if (!fs) { g_verts.clear(); g_bprims = 0; return; }
     if (zs && zs->h < fs->h) zs = nullptr;
     TexBind tb;
-    if (ds.tme) tb = resolve_texture(ds, fs, zs);
+    if (g_btme) tb = resolve_texture(ds, fs, zs);
     // target content inside the batch bounds must be current, except where sprites overwrite
     // everything without reading it (clears, full-screen copies)
-    bool blend_reads_dst = ds.abe && (ds.ba == 1 || ds.bb == 1 || ds.bd == 1 || ds.bc == 1) &&
-                           !(ds.ba == 0 && ds.bb == 1 && ds.bc == 2 && ds.bfix == 0x80 && ds.bd == 1);
-    bool color_overwrites = g_ball_sprites && ds.fbmsk == 0 && ds.fpsm != PSMCT24 && !ds.date && (!ds.ate || ds.atst == 1) &&
-                            !blend_reads_dst;
+    bool color_overwrites = g_ball_sprites && ds.fbmsk == 0 && ds.fpsm != PSMCT24 && g_bover;
     bool z_overwrites = g_ball_sprites && ds.zte && ds.ztst == 1 && !ds.zmsk;
     refresh(fs, g_bx0, g_by0, g_bx1, g_by1, color_overwrites ? &g_bsprites : nullptr);
     if (zs) refresh(zs, g_bx0, g_by0, g_bx1, g_by1, z_overwrites ? &g_bsprites : nullptr);
-    if (ds.tme && tb.surf && (tb.surf == fs || tb.surf == zs)) bind_snapshot(tb.surf, tb);
+    if (g_btme && tb.surf && (tb.surf == fs || tb.surf == zs)) bind_snapshot(tb.surf, tb);
     int nmips = 0;
     ID3D11ShaderResourceView* mip_srv[6] = {};
-    if (ds.tme && ds.mxl > 0 && ds.mmin >= 2 && ds.mmin <= 5 && !ds.mtba && !tb.surf && !tb.rep && g_cfg_mips) {
+    if (g_btme && ds.mxl > 0 && ds.mmin >= 2 && ds.mmin <= 5 && !ds.mtba && !tb.surf && !tb.rep && g_cfg_mips) {
         nmips = std::min<int>(ds.mxl, 6);
         for (int l = 1; l <= nmips; l++) {
             u64 m = l <= 3 ? ds.miptbp1 : ds.miptbp2;
@@ -1366,7 +1477,7 @@ static void flush() {
     DrawCB c{};
     if (tb.rep) { c.f15[0] = 1.0f; c.f15[1] = (float)tb.rep->k; }
     // text: 4 bit glyph caches with a palette of one color and an alpha ramp get sharp contours
-    if (ds.tme && S > 1 && tb.tfmt == 4 && !tb.surf && !tb.rep && platform::config().sharp_text &&
+    if (g_btme && S > 1 && tb.tfmt == 4 && !tb.surf && !tb.rep && platform::config().sharp_text &&
         ds.cpsm != PSMCT16 && ds.cpsm != PSMCT16S) {
         const u32* pal = &g_clut[(ds.csa & 15) * 16];
         u32 amin = 255, amax = 0;
@@ -1380,24 +1491,23 @@ static void flush() {
     }
     c.vp[0] = (float)fs->w; c.vp[1] = (float)fs->h; c.vp[2] = (float)S;
     u32 fpk = (ds.fpsm == PSMCT24 || ds.fpsm == PSMZ24) ? 1 : (is16(fl) ? 2 : 0);
-    c.f0[0] = fpk; c.f0[1] = ds.fbmsk; c.f0[2] = ds.fba; c.f0[3] = ds.colclamp;
-    c.f1[0] = ds.dthe; c.f1[1] = ds.ate; c.f1[2] = ds.atst; c.f1[3] = ds.aref;
-    c.f2[0] = ds.afail; c.f2[1] = ds.date; c.f2[2] = ds.datm; c.f2[3] = zs ? 1 : 0;
+    // (tests, blending, fog, shading and texturing on/off come with each vertex: prim_state)
+    c.f0[0] = fpk; c.f0[1] = ds.fbmsk;
+    c.f1[0] = ds.dthe;
+    c.f2[3] = zs ? 1 : 0;
     u32 zf = ds.zpsm == PSMZ32 ? 0 : ds.zpsm == PSMZ24 ? 1 : 2;
-    c.f3[0] = ds.ztst; c.f3[1] = ds.zmsk; c.f3[2] = zf; c.f3[3] = ds.abe;
-    c.f4[0] = ds.ba; c.f4[1] = ds.bb; c.f4[2] = ds.bc; c.f4[3] = ds.bd;
-    c.f5[0] = ds.bfix; c.f5[1] = ds.pabe; c.f5[2] = ds.iip; c.f5[3] = ds.tme;
-    c.f6[0] = ds.fst; c.f6[1] = ds.tfx; c.f6[2] = ds.tcc; c.f6[3] = (u32)tb.tfmt;
+    c.f3[0] = ds.ztst; c.f3[1] = ds.zmsk; c.f3[2] = zf;
+    c.f6[1] = ds.tfx; c.f6[2] = ds.tcc; c.f6[3] = (u32)tb.tfmt;
     c.f7[0] = 1u << ds.tw; c.f7[1] = 1u << ds.th; c.f7[2] = ds.wms; c.f7[3] = ds.wmt;
     c.f8[0] = ds.minu; c.f8[1] = ds.maxu; c.f8[2] = ds.minv; c.f8[3] = ds.maxv;
     c.f9[0] = (ds.cpsm == PSMCT16 || ds.cpsm == PSMCT16S) ? 1 : 0; c.f9[1] = ds.csa; c.f9[2] = ds.ta0; c.f9[3] = ds.ta1;
-    bool need_lod = ds.tme && !ds.fst && !ds.lcm && ds.mag_linear != ds.min_linear;
+    // (for FST primitives, Q = 1, this gives the filter of K like the fixed LOD)
+    bool need_lod = g_btme && !ds.lcm && ds.mag_linear != ds.min_linear;
     c.f10[0] = ds.aem; c.f10[1] = ds.mag_linear; c.f10[2] = ds.min_linear; c.f10[3] = need_lod;
     // the game picks texture detail for 512x448: at S times the resolution the same texel density
     // is reached log2(S) levels finer (sharper mip levels, magnification filter where it was minified)
     float lodk = ds.lodk - (platform::config().lod_scale ? log2f((float)S) : 0.0f);
     c.f11[0] = lodk; c.f11[1] = need_lod ? exp2f(lodk / (float)(1 << ds.lodl)) : 0.0f; c.f11[2] = tb.tscale;
-    c.f12[0] = ds.fge; c.f12[1] = ds.fogcol;
     c.f13[0] = tb.ox; c.f13[1] = tb.oy;
     c.f14[0] = (u32)nmips; c.f14[1] = ds.mmin; c.f14[2] = ds.lcm; c.f14[3] = ds.lodl;
     for (int y = 0; y < 4; y++)
@@ -1469,6 +1579,12 @@ static void flush() {
     uav_overlap(!tb.surf);  // a surface sampled as a texture must be complete
     if (!platform::skip_active()) ctx->Draw((UINT)(bytes / sizeof(GV)), first);  // skipping a cutscene: nothing to see
     st_batches++;
+    if (g_gpu_profile) {
+        u64 tk = !g_btme ? 0 : tb.rep ? 3 : tb.surf ? 2 : 1;
+        u64 key = (u64)(ds.fbp & 0x3FFF) | (u64)(ds.fbw & 63) << 14 | (u64)(ds.fpsm & 63) << 20 | tk << 26 |
+                  (u64)(g_btme ? ds.tbp & 0x3FFF : 0) << 28 | (u64)(g_btme ? ds.tpsm & 63 : 0) << 42;
+        prof_draw(key, (u32)g_bprims, (u32)std::min(g_barea, 4e9));
+    }
 
     // ownership of what was drawn (bounds of the batch, in cells)
     bool color_write = ds.fbmsk != 0xFFFFFFFFu;
@@ -1486,6 +1602,7 @@ static void flush() {
     if (zs && ds.zte && !ds.zmsk && ds.ztst != 0) mark(zs);
     g_verts.clear();
     g_bprims = 0;
+    g_barea = 0;
 }
 
 static inline void bounds_add(const DrawState& ds, int x0, int y0, int x1, int y1) {
@@ -1513,6 +1630,8 @@ static inline void uv_add(const DrawState& ds, const Vertex& v) {
 
 static inline GV mkv(const DrawState& ds, const Vertex& v, const Vertex& flat) {
     GV o;
+    o.st0 = g_ps0;
+    o.st1 = g_ps1;
     o.x = v.x / 16.0f;
     o.y = v.y / 16.0f;
     o.z = (float)v.z;
@@ -1594,11 +1713,44 @@ static bool hud_transform(const DrawState& ds, int prim, const Vertex* v, Vertex
     return true;
 }
 
+// State the shader reads per primitive (vertex STATE, PST in the shader): primitives that differ only in
+// it share a batch. The rasterizer ordered views keep the primitive order at each pixel within a draw.
+static void prim_state(const DrawState& ds, u32& s0, u32& s1) {
+    s0 = (ds.ate ? 1u : 0u) | (ds.atst & 7) << 1 | (ds.afail & 3) << 4 | (ds.date ? 1u : 0u) << 6 | (ds.datm ? 1u : 0u) << 7 |
+         (ds.aref & 0xFF) << 8 | (ds.abe ? 1u : 0u) << 16 | (ds.ba & 3) << 17 | (ds.bb & 3) << 19 | (ds.bc & 3) << 21 |
+         (ds.bd & 3) << 23 | (ds.pabe ? 1u : 0u) << 25 | (ds.fba ? 1u : 0u) << 26 | (ds.colclamp ? 1u : 0u) << 27 |
+         (ds.fge ? 1u : 0u) << 28 | (ds.iip ? 1u : 0u) << 29 | (ds.fst ? 1u : 0u) << 30 | (ds.tme ? 1u : 0u) << 31;
+    s1 = (ds.bfix & 0xFF) | (ds.fogcol & 0xFFFFFF) << 8;
+}
+static bool same_batch_state(const DrawState& a, const DrawState& b) {
+    DrawState x = b;
+    x.ate = a.ate; x.atst = a.atst; x.aref = a.aref; x.afail = a.afail; x.date = a.date; x.datm = a.datm;
+    x.abe = a.abe; x.ba = a.ba; x.bb = a.bb; x.bc = a.bc; x.bd = a.bd; x.bfix = a.bfix; x.pabe = a.pabe; x.fba = a.fba;
+    x.colclamp = a.colclamp; x.fge = a.fge; x.fogcol = a.fogcol; x.iip = a.iip; x.fst = a.fst; x.tme = a.tme;
+    return same_draw_state(a, x);
+}
+// the primitive writes its pixels without reading the target (refresh may skip what sprites cover)
+static bool prim_overwrites(const DrawState& ds) {
+    bool blend_reads_dst = ds.abe && (ds.ba == 1 || ds.bb == 1 || ds.bd == 1 || ds.bc == 1) &&
+                           !(ds.ba == 0 && ds.bb == 1 && ds.bc == 2 && ds.bfix == 0x80 && ds.bd == 1);
+    return !ds.date && (!ds.ate || ds.atst == 1) && !blend_reads_dst;
+}
+
 void on_draw(const DrawState& ds, u32 state_id, int prim, const Vertex* vin) {
     st_draws++;
     Vertex hv[3];
     bool hud = hud_transform(ds, prim, vin, hv);
     const Vertex* v = hud ? hv : vin;
+    if (state_id != g_bid && g_bvalid && !g_verts.empty() && !g_bself && hud == g_bhud && !(ds.tme && g_bself_tex) &&
+        !g_no_batch_join && same_batch_state(g_prev_raw, ds)) {
+        // only per-primitive state changed: the primitive joins the batch
+        st_why[2]++;
+        g_prev_raw = ds;
+        g_bid = state_id;
+        g_btme |= ds.tme;
+        g_bover &= prim_overwrites(ds);
+        prim_state(ds, g_ps0, g_ps1);
+    }
     if (state_id != g_bid || hud != g_bhud || g_bself) {
         if (g_bvalid && !g_verts.empty()) {
             const DrawState& p = g_prev_raw;
@@ -1621,7 +1773,7 @@ void on_draw(const DrawState& ds, u32 state_id, int prim, const Vertex* vin) {
                     p.dthe != ds.dthe || memcmp(p.dimx, ds.dimx, sizeof p.dimx) != 0};
                 bool any = false;
                 for (int i = 0; i < 11; i++) if (d[i]) { st_why[3 + i]++; any = true; }
-                if (!any) st_why[2]++;
+                if (!any) st_why[0]++;  // a textured primitive sampling the batch's target
             }
         }
         g_prev_raw = ds;
@@ -1646,7 +1798,11 @@ void on_draw(const DrawState& ds, u32 state_id, int prim, const Vertex* vin) {
         g_ball_sprites = true;
         g_bsprites.clear();
         // a texture in memory the batch can write: each primitive must see the previous one's result
-        g_bself = ds.tme && samples_own_writes(ds);
+        g_bself_tex = samples_own_writes(ds);
+        g_bself = ds.tme && g_bself_tex;
+        g_btme = ds.tme;
+        g_bover = prim_overwrites(ds);
+        prim_state(ds, g_ps0, g_ps1);
     }
     const DrawState& b = g_bds;
     if (prim != 6) g_ball_sprites = false;
@@ -1655,8 +1811,8 @@ void on_draw(const DrawState& ds, u32 state_id, int prim, const Vertex* vin) {
         int minx = std::min({v[0].x, v[1].x, v[2].x}), maxx = std::max({v[0].x, v[1].x, v[2].x});
         int miny = std::min({v[0].y, v[1].y, v[2].y}), maxy = std::max({v[0].y, v[1].y, v[2].y});
         bounds_add(b, (minx + 15) >> 4, (miny + 15) >> 4, (maxx + 15) >> 4, (maxy + 15) >> 4);
-        for (int i = 0; i < 3; i++) g_verts.push_back(mkv(b, v[i], v[2]));
-        if (b.tme) for (int i = 0; i < 3; i++) uv_add(b, v[i]);
+        for (int i = 0; i < 3; i++) g_verts.push_back(mkv(ds, v[i], v[2]));
+        if (ds.tme) for (int i = 0; i < 3; i++) uv_add(ds, v[i]);
         break;
     }
     case 6: {
@@ -1669,7 +1825,7 @@ void on_draw(const DrawState& ds, u32 state_id, int prim, const Vertex* vin) {
                       std::min((std::max(a.x, c.x) + 15) >> 4, b.scax1 + 1), std::min((std::max(a.y, c.y) + 15) >> 4, b.scay1 + 1)};
             if (r.x1 > r.x0 && r.y1 > r.y0) g_bsprites.push_back(r);
         }
-        GV p00 = mkv(b, a, c), p11 = mkv(b, c, c);
+        GV p00 = mkv(ds, a, c), p11 = mkv(ds, c, c);
         // corners: position and texture coordinates from the two vertices, everything else from the second
         GV p10 = p11, p01 = p11, q00 = p11;
         q00.x = p00.x; q00.y = p00.y; q00.s = p00.s; q00.t = p00.t;
@@ -1677,14 +1833,14 @@ void on_draw(const DrawState& ds, u32 state_id, int prim, const Vertex* vin) {
         p01.x = p00.x; p01.y = p11.y; p01.s = p00.s; p01.t = p11.t;
         g_verts.push_back(q00); g_verts.push_back(p10); g_verts.push_back(p01);
         g_verts.push_back(p10); g_verts.push_back(p11); g_verts.push_back(p01);
-        if (b.tme) { uv_add(b, a); uv_add(b, c); }
+        if (ds.tme) { uv_add(ds, a); uv_add(ds, c); }
         break;
     }
     case 1: {
         // line: a quad one native pixel wide across the minor axis
         const Vertex& a = v[0];
         const Vertex& c = v[1];
-        GV p0 = mkv(b, a, c), p1 = mkv(b, c, c);
+        GV p0 = mkv(ds, a, c), p1 = mkv(ds, c, c);
         float dx = fabsf(p1.x - p0.x), dy = fabsf(p1.y - p0.y);
         GV p2 = p0, p3 = p1;
         if (dx >= dy) { p2.y += 1; p3.y += 1; } else { p2.x += 1; p3.x += 1; }
@@ -1692,12 +1848,12 @@ void on_draw(const DrawState& ds, u32 state_id, int prim, const Vertex* vin) {
         g_verts.push_back(p1); g_verts.push_back(p3); g_verts.push_back(p2);
         bounds_add(b, (int)floorf(std::min(p0.x, p1.x)), (int)floorf(std::min(p0.y, p1.y)), (int)ceilf(std::max(p0.x, p1.x)) + 1,
                    (int)ceilf(std::max(p0.y, p1.y)) + 1);
-        if (b.tme) { uv_add(b, a); uv_add(b, c); }
+        if (ds.tme) { uv_add(ds, a); uv_add(ds, c); }
         break;
     }
     case 0: {
         const Vertex& a = v[0];
-        GV p = mkv(b, a, a);
+        GV p = mkv(ds, a, a);
         p.x = (float)((a.x + 8) >> 4);
         p.y = (float)((a.y + 8) >> 4);
         GV p10 = p, p01 = p, p11 = p;
@@ -1705,12 +1861,19 @@ void on_draw(const DrawState& ds, u32 state_id, int prim, const Vertex* vin) {
         g_verts.push_back(p); g_verts.push_back(p10); g_verts.push_back(p01);
         g_verts.push_back(p10); g_verts.push_back(p11); g_verts.push_back(p01);
         bounds_add(b, (int)p.x, (int)p.y, (int)p.x + 1, (int)p.y + 1);
-        if (b.tme) uv_add(b, a);
+        if (ds.tme) uv_add(ds, a);
         break;
     }
     }
     st_prims++;
     g_bprims++;
+    if (g_gpu_profile) {
+        double a;
+        if (prim == 3) a = fabs((double)(v[1].x - v[0].x) * (v[2].y - v[0].y) - (double)(v[2].x - v[0].x) * (v[1].y - v[0].y)) / 512.0;
+        else if (prim == 6) a = fabs((double)(v[1].x - v[0].x) * (v[1].y - v[0].y)) / 256.0;
+        else a = prim == 1 ? std::max(abs(v[1].x - v[0].x), abs(v[1].y - v[0].y)) / 16.0 : 1.0;
+        g_barea += a;
+    }
     if (g_verts.size() * sizeof(GV) > VB_BYTES - 1024) flush();
 }
 
@@ -1735,8 +1898,13 @@ void on_clut_load(u64 tex0, u64 texclut) {
     memcpy(tmp, g_clut, sizeof(tmp));
     exec_clut_load_m(shadow, tmp, tex0, texclut);
     if (memcmp(tmp, g_clut, sizeof(tmp)) != 0 || !g_clut_valid) {
-        if (!g_verts.empty()) st_why[14]++;
-        flush();
+        // only a batch drawing with a palette needs the old one (the buffer update is ordered before its draw)
+        u32 t = g_bds.tpsm;
+        bool uses_clut = g_btme && (t == PSMT8 || t == PSMT4 || t == PSMT8H || t == PSMT4HL || t == PSMT4HH);
+        if (!g_verts.empty() && uses_clut) {
+            st_why[14]++;
+            flush();
+        }
         memcpy(g_clut, tmp, sizeof(tmp));
         ctx->UpdateSubresource(g_clut_buf, 0, nullptr, g_clut, 0, 0);
         g_clut_valid = true;
@@ -1867,6 +2035,7 @@ static void gpu_timing_frame() {
 void on_present(const PresentParams& p, const u32* sw_frame) {
     flush();
     if (g_gpu_timing) gpu_timing_frame();
+    if (g_gpu_profile) prof_frame();
     {
         // double buffering: the last two distinct buffers shown are the frame buffers
         u32 b = ((p.pmode >> 1) & 1) ? bits(p.dispfb[1], 0, 9) * 32 : bits(p.dispfb[0], 0, 9) * 32;
@@ -1945,12 +2114,20 @@ void on_present(const PresentParams& p, const u32* sw_frame) {
         platform::request_final_shot();
         shot = false;
     }
-    if (shot || sw_frame) {
+    if (shot || sw_frame || g_frame_hashes) {
         if (!g_out_staging) make_tex2d(ow, oh, DXGI_FORMAT_R8G8B8A8_UNORM, 0, D3D11_USAGE_STAGING, D3D11_CPU_ACCESS_READ, &g_out_staging);
         ctx->CopySubresourceRegion(g_out_staging, 0, 0, 0, 0, g_out, 0, nullptr);
         D3D11_MAPPED_SUBRESOURCE m;
         if (SUCCEEDED(ctx->Map(g_out_staging, 0, D3D11_MAP_READ, 0, &m))) {
             if (shot) platform::save_screenshot((const u32*)m.pData, ow, oh, (int)(m.RowPitch / 4));
+            if (g_frame_hashes) {
+                u64 h = 0xCBF29CE484222325ull;
+                for (int y = 0; y < oh; y++) {
+                    const u32* row = (const u32*)((const u8*)m.pData + (size_t)y * m.RowPitch);
+                    for (int x = 0; x < ow; x++) h = (h ^ (row[x] & 0xFFFFFF)) * 0x100000001B3ull;
+                }
+                log_write(LOG_GS, "gpu frame %llu hash %016llx", (unsigned long long)g_frame, (unsigned long long)h);
+            }
             if (shot && g_hd_ab) {
                 platform::config().hd_textures = !platform::config().hd_textures;
                 ab_state = ab_second ? 0 : 1;
@@ -2018,16 +2195,17 @@ void on_readback(const CopyInfo& r) {
 const u32* memory() { return shadow; }
 
 std::string stats() {
-    static u64 l_gcopy, l_skip, l_rehash;
+    static u64 l_gcopy, l_skip, l_rehash, l_created;
     static u64 l_draws, l_batches, l_refresh, l_rbc, l_rb, l_dec, l_hits, l_stale, l_self, l_rep, l_dump;
     char b[1200];
-    snprintf(b, sizeof(b), "gpu: %llu prims in %llu batches, refresh %llu cells (gpu copies %llu, skipped %llu), readback %llu cells in %llu, tex decode %llu hit %llu (same data %llu) stale %llu, self %llu, surfaces %d, compare bad %llu/%llu, hd textures %llu, dumped %llu",
+    snprintf(b, sizeof(b), "gpu: %llu prims in %llu batches, refresh %llu cells (gpu copies %llu, skipped %llu), readback %llu cells in %llu, tex decode %llu hit %llu (same data %llu) stale %llu, self %llu, surfaces %d, compare bad %llu/%llu, hd textures %llu (loaded %llu), dumped %llu",
              (unsigned long long)(st_draws - l_draws), (unsigned long long)(st_batches - l_batches), (unsigned long long)(st_refresh_cells - l_refresh),
              (unsigned long long)(st_gpu_copy_cells - l_gcopy), (unsigned long long)(st_skip_cells - l_skip),
              (unsigned long long)(st_readback_cells - l_rbc), (unsigned long long)(st_readbacks - l_rb), (unsigned long long)(st_tex_decodes - l_dec),
              (unsigned long long)(st_tex_hits - l_hits), (unsigned long long)(st_tex_rehash - l_rehash), (unsigned long long)(st_stale_texels - l_stale), (unsigned long long)(st_self - l_self),
              (int)std::count_if(g_surf.begin(), g_surf.end(), [](Surface* s) { return s != nullptr; }), (unsigned long long)g_cmp_bad_frames,
-             (unsigned long long)g_cmp_frames, (unsigned long long)(st_tex_replaced - l_rep), (unsigned long long)(st_tex_dumped - l_dump));
+             (unsigned long long)g_cmp_frames, (unsigned long long)(st_tex_replaced - l_rep), (unsigned long long)(st_rep_created - l_created),
+             (unsigned long long)(st_tex_dumped - l_dump));
     {
         static u64 l_why[16];
         u64 w[16];
@@ -2035,7 +2213,7 @@ std::string stats() {
         u64 ondraw = w[0] + w[1] + w[2];
         for (int i = 3; i < 14; i++) ondraw += 0;
         char t[400];
-        snprintf(t, sizeof t, " | breaks: all %llu self %llu hud %llu same %llu clut %llu; fields frame %llu z %llu test %llu blend %llu tex %llu texmode %llu clamp %llu filter %llu misc %llu scissor %llu dither %llu",
+        snprintf(t, sizeof t, " | breaks: all %llu self %llu hud %llu joined %llu clut %llu; fields frame %llu z %llu test %llu blend %llu tex %llu texmode %llu clamp %llu filter %llu misc %llu scissor %llu dither %llu",
                  (unsigned long long)w[15], (unsigned long long)w[0], (unsigned long long)w[1], (unsigned long long)w[2], (unsigned long long)w[14],
                  (unsigned long long)w[3], (unsigned long long)w[4], (unsigned long long)w[5], (unsigned long long)w[6], (unsigned long long)w[7],
                  (unsigned long long)w[8], (unsigned long long)w[9], (unsigned long long)w[10], (unsigned long long)w[11], (unsigned long long)w[12],
@@ -2043,6 +2221,7 @@ std::string stats() {
         strncat(b, t, sizeof(b) - strlen(b) - 1);
     }
     l_rep = st_tex_replaced;
+    l_created = st_rep_created;
     l_dump = st_tex_dumped;
     l_gcopy = st_gpu_copy_cells;
     l_skip = st_skip_cells;

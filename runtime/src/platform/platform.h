@@ -27,6 +27,7 @@ struct Config {
     bool widescreen_hack = false;
     bool remove_letterbox = false;
     bool vibration = true;          // controller rumble
+    bool camera_invert_x = false;   // right stick left/right reversed (field camera turns the other way)
     int disc = 1;                   // which disc is "inserted" (1 or 2); switching restarts the game
     bool lod_scale = true;          // GPU renderer: texture detail level follows the internal resolution
     bool hud_fix = true;            // widescreen: 2D elements keep their 4:3 proportions (GPU renderer)  // no black bars in cutscenes and battles (PCSX2 patch, marked "may cause error")

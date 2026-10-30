@@ -7,6 +7,7 @@
 #include "../savestate.h"
 #include <windows.h>
 #include <xinput.h>
+#include <algorithm>
 #include <atomic>
 #include <cstdio>
 #include <functional>
@@ -39,6 +40,7 @@ struct Item {
 std::vector<Item> g_items;
 std::atomic<bool> g_open{false};
 int g_sel = 1;
+int g_first = 0;   // first row shown when the list scrolls
 bool g_disc_confirm = false;
 std::wstring g_note;
 std::mutex g_mu;
@@ -47,6 +49,14 @@ int g_w = 0, g_h = 0, g_target_h = 0;
 u64 g_version = 1, g_drawn = 0;
 
 std::wstring onoff(bool b) { return b ? L"An" : L"Aus"; }
+
+// size factor of the port's panels for a picture height (base: the height at which they have their
+// design size). The Steam Deck's small screen gets them about a third larger.
+double ui_scale(int target_h, double base) {
+    double s = target_h / base;
+    if (is_steam_deck()) s *= 1.35;
+    return s < 0.6 ? 0.6 : s;
+}
 int clampi(int v, int lo, int hi) { return v < lo ? lo : (v > hi ? hi : v); }
 
 void build_items() {
@@ -124,6 +134,9 @@ void build_items() {
     g_items.push_back({L"Sprache", [&c] { return std::to_wstring(c.vol_voice) + L" %"; }, pct(c.vol_voice, 5)});
     g_items.push_back({L"Effekte", [&c] { return std::to_wstring(c.vol_sfx) + L" %"; }, pct(c.vol_sfx, 5)});
     g_items.push_back({L"Videos", [&c] { return std::to_wstring(c.vol_movie) + L" %"; }, pct(c.vol_movie, 5)});
+    g_items.push_back({nullptr, [] { return std::wstring(L"Steuerung"); }, nullptr, true});
+    g_items.push_back({L"Kamera umkehren (rechter Stick links/rechts)", [&c] { return onoff(c.camera_invert_x); }, toggle(c.camera_invert_x)});
+    g_items.push_back({L"Vibration", [&c] { return onoff(c.vibration); }, toggle(c.vibration, [] { set_vibration(0, 0); })});
     g_items.push_back({nullptr, [] { return std::wstring(L"System"); }, nullptr, true});
     g_items.push_back({L"Sprache (Language)", [&c] { return language_name(c.language); }, [&c](int dir) {
                            std::vector<std::string> l = languages();
@@ -179,8 +192,19 @@ void render_locked() {
     int rows = (int)g_items.size();
     const int BASE_W = 760, ROW = 30, TOP = 74, BOTTOM = 70;
     int base_h = TOP + rows * ROW + BOTTOM;
+    // all rows at once where they stay readable; otherwise (small screens, the Steam Deck: rows of
+    // about 40 pixels at 800) the list scrolls with the selection
     double s = g_target_h > 0 ? (double)g_target_h / base_h : 1.0;
+    if (g_target_h > 0 && is_steam_deck()) s = std::max(s, g_target_h / 800.0 * 1.33);
     if (s < 0.6) s = 0.6;
+    int vis = rows;
+    if (g_target_h > 0 && base_h * s > g_target_h) vis = std::max(5, (int)((g_target_h / s - TOP - BOTTOM) / ROW));
+    vis = std::min(vis, rows);
+    // keep the selection (and a section header right above it) in view
+    if (g_sel - 1 < g_first) g_first = std::max(0, g_sel - 1);
+    if (g_sel + 1 >= g_first + vis) g_first = g_sel + 2 - vis;
+    g_first = std::max(0, std::min(g_first, rows - vis));
+    base_h = TOP + vis * ROW + BOTTOM;
     int W = (int)(BASE_W * s), H = (int)(base_h * s);
     auto S = [s](int v) { return (int)(v * s + 0.5); };
     BITMAPINFO bi{};
@@ -210,9 +234,17 @@ void render_locked() {
     SetTextColor(dc, RGB(235, 215, 150));
     RECT tr{S(28), S(16), W - S(28), S(60)};
     DrawTextW(dc, platform::tr(L"Einstellungen"), -1, &tr, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
-    for (int i = 0; i < rows; i++) {
+    if (vis < rows) {
+        // scroll marks: more rows above / below
+        SelectObject(dc, fhead);
+        SetTextColor(dc, RGB(150, 170, 210));
+        std::wstring m = std::wstring(g_first > 0 ? L"▲" : L"  ") + L"  " + (g_first + vis < rows ? L"▼" : L"  ");
+        RECT mr{S(28), S(16), W - S(28), S(60)};
+        DrawTextW(dc, m.c_str(), -1, &mr, DT_RIGHT | DT_VCENTER | DT_SINGLELINE);
+    }
+    for (int i = g_first; i < g_first + vis; i++) {
         const Item& it = g_items[i];
-        int y = TOP + i * ROW;
+        int y = TOP + (i - g_first) * ROW;
         RECT r{S(20), S(y), W - S(20), S(y + ROW)};
         if (it.header) {
             SelectObject(dc, fhead);
@@ -363,8 +395,7 @@ static bool skip_banner(int target_h, std::vector<u32>& out, int& w, int& h, u64
     static std::vector<u32> px;
     static int bw = 0, bh = 0, for_h = 0;
     if (for_h != target_h || px.empty()) {
-        double s = target_h / 860.0;
-        if (s < 0.6) s = 0.6;
+        double s = ui_scale(target_h, 860.0);
         int W = (int)(560 * s), H = (int)(110 * s);
         BITMAPINFO bi{};
         bi.bmiHeader.biSize = sizeof(bi.bmiHeader);
@@ -421,7 +452,8 @@ void show_notice(const std::wstring& line1, const std::wstring& line2, double se
     std::lock_guard<std::mutex> lk(g_nmu);
     g_n1 = line1;
     g_n2 = line2;
-    g_nuntil = host_time_sec() + seconds;
+    // the Steam Deck: a little longer, a glance at the small screen is easily missed
+    g_nuntil = host_time_sec() + seconds + (is_steam_deck() ? 1.5 : 0.0);
     g_nver++;
 }
 bool notice_active() { return host_time_sec() < g_nuntil; }
@@ -439,8 +471,7 @@ static bool notice_banner(int target_h, std::vector<u32>& out, int& w, int& h, u
         ver = g_nver;
     }
     if (for_h != target_h || for_ver != ver || px.empty()) {
-        double s = target_h / 860.0;
-        if (s < 0.6) s = 0.6;
+        double s = ui_scale(target_h, 860.0);
         int W = (int)(520 * s), H = (int)((l2.empty() ? 60 : 96) * s);
         BITMAPINFO bi{};
         bi.bmiHeader.biSize = sizeof(bi.bmiHeader);
@@ -496,8 +527,7 @@ bool fps_pixels(int target_h, int fps, std::vector<u32>& out, int& w, int& h, u6
     static std::vector<u32> px;
     static int bw = 0, bh = 0, for_h = 0, for_fps = -1;
     if (for_h != target_h || for_fps != fps || px.empty()) {
-        double s = target_h / 860.0;
-        if (s < 0.6) s = 0.6;
+        double s = ui_scale(target_h, 860.0);
         int W = (int)(118 * s), H = (int)(40 * s);
         BITMAPINFO bi{};
         bi.bmiHeader.biSize = sizeof(bi.bmiHeader);

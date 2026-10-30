@@ -9,6 +9,7 @@ void set_crt(u32 interlace, u32 mode, u32 field);
 u32 get_imr();
 void put_imr(u32 v);
 u64 read_csr();
+void reraise_events();  // after loading a savestate: SIGNAL / FINISH set without its interrupt
 u64 flip_count();  // game frame buffer flips so far
 extern int g_test_frame_delay_ms;  // --frame-delay: sleep per flip (test of the 60 fps fallback)
 void on_vblank_start();

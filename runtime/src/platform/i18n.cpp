@@ -38,6 +38,8 @@ static const wchar_t* const TEXTS[][2] = {
     {L"Bildschirm (Ultrawide)", L"Screen (ultrawide)"},
     {L"Vollbild", L"Fullscreen"},
     {L"Bildrate anzeigen", L"Show frame rate"},
+    {L"Steuerung", L"Controls"},
+    {L"Kamera umkehren (rechter Stick links/rechts)", L"Invert camera (right stick left/right)"},
     {L"Interne Auflösung (ab Neustart)", L"Internal resolution (after restart)"},
     {L"Automatisch", L"Automatic"},
     {L"Lautstärke gesamt", L"Master volume"},

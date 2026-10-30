@@ -43,8 +43,13 @@ Steam Deck
 - The Deck is detected automatically: on the first start the game uses a real 16:10 widescreen view,
   full screen and large dialogue windows.
 - Controls: View + Menu = settings menu, View + R1 = save a savestate, View + L1 = load it.
-- Performance on the Deck has not been tested on real hardware yet. If a scene cannot reach 60 fps,
-  the game drops back to its native 30 fps there by itself. Reports are welcome.
+  The settings menu and the savestate notes are drawn larger on the Deck; the menu scrolls.
+- Tested on a Steam Deck (Proton Experimental): the field runs at 60 fps with the 60 fps option,
+  cutscenes at 30 like the original. If a scene cannot reach 60 fps, the game drops back to its native
+  30 fps there by itself. If an effect-heavy scene still runs below 30, set "Internal resolution" in the
+  F1 menu to 1x. Reports are welcome.
+- If turning the camera with the right stick feels the wrong way round: F1 menu, Controls,
+  "Invert camera".
 
 
 Keys
@@ -82,8 +87,8 @@ Features
 - Subtitles for voiced cutscenes and movies without a text box (experimental, English): so far from
   the opening up to the night on Alonso's ship after the casino with Bianca; later scenes follow.
   Switch: F1 menu "Subtitles in cutscenes". Please report wrong timing or wrong/missing lines.
-- Language: the original English text, or German (complete translation). More languages can be added
-  as lang\<code>.tsv files.
+- Language: the original English text, German or French (complete fan translations, French is new
+  and has seen little play testing so far). More languages can be added as lang\<code>.tsv files.
 - HD texture packs: images in a folder "textures" next to the program replace the game's textures
   (not part of this archive). An unofficial 4x pack (7.5 GB, two parts - unzip both next to the exe):
   https://mega.nz/file/HsAA1ZJI#XaEf7ifCbabg8oY0FB5-TBd1A7-65ooXDTEMhyZIy5U
@@ -94,7 +99,7 @@ Settings (grandia3.ini)
 -----------------------
 The F1 menu covers everything; grandia3.ini holds the same settings, a few more, and comments.
 Some of them:
-  language = en          en = original English text, de = German
+  language = en          en = original English text, de = German, fr = French
   internal_scale = 0     0 = automatic, 1 = original 512 x 448, 2 .. 8
   aspect = 0             0 = 4:3, 1 = 16:9, 2 = fill the window, 3 = 16:10, 4 = screen (ultrawide)
   widescreen_hack = 1    widescreen view
@@ -103,6 +108,7 @@ Some of them:
   fps60 = 0              60 fps (F3)
   gs_thread = 1          3D geometry on a processor core of its own (faster)
   subtitles = 1          subtitles in cutscenes (lang\sub_en.tsv)
+  camera_invert_x = 0    1 = right stick left/right reversed (camera turns the other way)
 
 
 Problems?
@@ -110,3 +116,10 @@ Problems?
 The program writes grandia3.log next to itself. Please attach it to a bug report.
 If the picture stays black or the game is very slow, the graphics driver may not support the needed
 Direct3D 11.3 features; renderer = software in grandia3.ini is a (slow) fallback.
+
+
+License
+-------
+The program code is under the MIT license (source code and LICENSE:
+https://github.com/GranasSabre/Grandia3-PC). Grandia III and everything in it belong to Square Enix
+and Game Arts.

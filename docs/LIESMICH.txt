@@ -38,6 +38,7 @@ Sprache
 -------
 Standard ist Englisch (Originaltext). Deutsch: im F1-Menü "Language" auf "Deutsch" stellen (oder in
 grandia3.ini: language = de). Die Menüs wechseln sofort, die Spieltexte beim nächsten Start.
+Außerdem gibt es Französisch (language = fr, neu und bisher wenig im Spiel getestet).
 
 
 Steam Deck
@@ -49,8 +50,13 @@ Steam Deck
 - Das Deck wird automatisch erkannt: Beim ersten Start gibt es eine echte 16:10-Widescreen-Ansicht,
   Vollbild und große Dialogfenster.
 - Bedienung: Ansicht + Menü = Einstellungsmenü, Ansicht + R1 = Savestate speichern, Ansicht + L1 = laden.
-- Auf echter Deck-Hardware ist die Leistung noch nicht gemessen. Schafft eine Szene keine 60 fps,
-  schaltet das Spiel dort von selbst auf seine eigenen 30 fps zurück.
+  Einstellungsmenü und Savestate-Meldungen sind auf dem Deck größer; das Menü scrollt.
+- Auf einem Steam Deck getestet (Proton Experimental): Im Feld läuft das Spiel mit der 60-fps-Option
+  mit 60 fps, Zwischensequenzen wie im Original mit 30. Schafft eine Szene keine 60 fps, schaltet das
+  Spiel dort von selbst auf seine eigenen 30 fps zurück. Läuft eine Szene mit vielen Effekten trotzdem
+  unter 30, im F1-Menü "Interne Auflösung" auf 1x stellen.
+- Wenn sich das Drehen der Kamera mit dem rechten Stick verkehrt anfühlt: F1-Menü, Steuerung,
+  "Kamera umkehren".
 
 
 Tasten
@@ -98,3 +104,10 @@ Funktionen
 Probleme?
 ---------
 Das Programm schreibt grandia3.log neben sich. Bitte bei Fehlerberichten anhängen.
+
+
+Lizenz
+------
+Der Programmcode steht unter der MIT-Lizenz (Quellcode und LICENSE:
+https://github.com/GranasSabre/Grandia3-PC). Grandia III und alle Inhalte des Spiels gehören
+Square Enix und Game Arts.

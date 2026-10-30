@@ -9,19 +9,19 @@ namespace gpu {
 static const char* DRAW_HLSL = R"HLSL(
 cbuffer CB : register(b0) {
     float4 vp;          // surface width, height (native pixels), scale S
-    uint4 f0;           // fpsm kind (0 C32, 1 C24, 2 C16), fbmsk, fba, colclamp
-    uint4 f1;           // dthe, ate, atst, aref
-    uint4 f2;           // afail, date, datm, zte
-    uint4 f3;           // ztst, zmsk, zfmt (0 Z32, 1 Z24, 2 Z16), abe
-    uint4 f4;           // ba, bb, bc, bd
-    uint4 f5;           // bfix, pabe, iip, tme
-    uint4 f6;           // fst, tfx, tcc, tfmt
+    uint4 f0;           // fpsm kind (0 C32, 1 C24, 2 C16), fbmsk
+    uint4 f1;           // dthe
+    uint4 f2;           // -, -, -, zte
+    uint4 f3;           // ztst, zmsk, zfmt (0 Z32, 1 Z24, 2 Z16)
+    uint4 f4;           // unused
+    uint4 f5;           // unused
+    uint4 f6;           // -, tfx, tcc, tfmt
     uint4 f7;           // tw, th, wms, wmt
     uint4 f8;           // minu, maxu, minv, maxv
     uint4 f9;           // cpsm16, csa, ta0, ta1
     uint4 f10;          // aem, mag_linear, min_linear, need_lod
     float4 f11;         // lodk, qthr, texture scale (1 or S)
-    uint4 f12;          // fge, fogcol
+    uint4 f12;          // unused
     int4 f13;           // texture origin in the surface (native texels), texture texel limits
     uint4 f14;          // mip levels bound (0 = none), mmin, lcm, L
     float4 f15;         // HD texture: on, scale k (HD texels per texel); sharp text: on, full alpha
@@ -29,29 +29,11 @@ cbuffer CB : register(b0) {
 };
 #define FPSM f0.x
 #define FBMSK f0.y
-#define FBA f0.z
-#define COLCLAMP f0.w
 #define DTHE f1.x
-#define ATE f1.y
-#define ATST f1.z
-#define AREF f1.w
-#define AFAIL f2.x
-#define DATE f2.y
-#define DATM f2.z
 #define ZTE f2.w
 #define ZTST f3.x
 #define ZMSK f3.y
 #define ZFMT f3.z
-#define ABE f3.w
-#define BA f4.x
-#define BB f4.y
-#define BC f4.z
-#define BD f4.w
-#define BFIX f5.x
-#define PABE f5.y
-#define IIP f5.z
-#define TME f5.w
-#define FST f6.x
 #define TFX f6.y
 #define TCC f6.z
 #define TFMT f6.w
@@ -82,8 +64,29 @@ cbuffer CB : register(b0) {
 #define HDK f15.y
 #define FONTTEX f15.z
 #define FONTAMAX f15.w
-#define FGE f12.x
-#define FOGCOL f12.y
+// state of the primitive (vertex STATE, packed by prim_state in gs_gpu.cpp): tests, blending, fog,
+// shading and texturing on/off may change within one draw
+static uint2 PST;
+#define ATE (PST.x & 1)
+#define ATST ((PST.x >> 1) & 7)
+#define AFAIL ((PST.x >> 4) & 3)
+#define DATE ((PST.x >> 6) & 1)
+#define DATM ((PST.x >> 7) & 1)
+#define AREF ((PST.x >> 8) & 0xFF)
+#define ABE ((PST.x >> 16) & 1)
+#define BA ((PST.x >> 17) & 3)
+#define BB ((PST.x >> 19) & 3)
+#define BC ((PST.x >> 21) & 3)
+#define BD ((PST.x >> 23) & 3)
+#define PABE ((PST.x >> 25) & 1)
+#define FBA (((PST.x >> 26) & 1) << 7)
+#define COLCLAMP ((PST.x >> 27) & 1)
+#define FGE ((PST.x >> 28) & 1)
+#define IIP ((PST.x >> 29) & 1)
+#define FST ((PST.x >> 30) & 1)
+#define TME (PST.x >> 31)
+#define BFIX (PST.y & 0xFF)
+#define FOGCOL (PST.y >> 8)
 
 RasterizerOrderedTexture2D<uint> fb : register(u0);
 RasterizerOrderedTexture2D<uint> zb : register(u1);
@@ -107,6 +110,7 @@ struct VSIn {
     float3 stq : STQ;
     float fog : FOG;
     float4 fcol : FCOL;
+    uint2 st : STATE;
 };
 struct PSIn {
     float4 pos : SV_Position;
@@ -115,6 +119,7 @@ struct PSIn {
     noperspective float3 stq : STQ;
     noperspective float z : ZV;
     noperspective float fog : FOG;
+    nointerpolation uint2 st : STATE;
 };
 
 PSIn vs_main(VSIn i) {
@@ -128,6 +133,7 @@ PSIn vs_main(VSIn i) {
     o.stq = i.stq;
     o.z = i.z;
     o.fog = i.fog;
+    o.st = i.st;
     return o;
 }
 
@@ -157,7 +163,10 @@ uint4 texel(uint raw) {
 
 // one axis of the texture address in texture texels at scale k (TSCALE for level 0, 1 for mips)
 int wrap_axis(int c, uint mode, int size, int mn, int mx, int k) {
-    int n = (c >= 0) ? c / k : -((-c + k - 1) / k);
+    // floor(c / k) without integer divisions (slow on GPUs); k is 1, the internal scale or an HD factor
+    int n = (int)floor((float)c / (float)k);
+    n += ((n + 1) * k <= c) ? 1 : 0;
+    n -= (n * k > c) ? 1 : 0;
     int sub = c - n * k;
     int m;
     switch (mode) {
@@ -169,16 +178,21 @@ int wrap_axis(int c, uint mode, int size, int mn, int mx, int k) {
     if (mode == 1 || mode == 2) sub = (m > n) ? 0 : (m < n ? k - 1 : sub);
     return m * k + sub;
 }
-uint fetch_lv(int l, int u, int v) {
+// texel column (u) / row (v) of mip level l after wrapping
+int wrap_u(int l, int u) {
+    if (l == 0) return wrap_axis(u, WMS, (int)TW, (int)MINU, (int)MAXU, (int)TSCALE);
+    return wrap_axis(u, WMS, max((int)TW >> l, 1), (int)MINU >> l, (int)MAXU >> l, 1);
+}
+int wrap_v(int l, int v) {
+    if (l == 0) return wrap_axis(v, WMT, (int)TH, (int)MINV, (int)MAXV, (int)TSCALE);
+    return wrap_axis(v, WMT, max((int)TH >> l, 1), (int)MINV >> l, (int)MAXV >> l, 1);
+}
+// raw texel at wrapped coordinates of level l
+uint load_lv(int l, int x, int y) {
     if (l == 0) {
         int k = (int)TSCALE;
-        int x = wrap_axis(u, WMS, (int)TW, (int)MINU, (int)MAXU, k);
-        int y = wrap_axis(v, WMT, (int)TH, (int)MINV, (int)MAXV, k);
         return tex.Load(int3(x + f13.x * k, y + f13.y * k, 0));
     }
-    int sw = max((int)TW >> l, 1), sh = max((int)TH >> l, 1);
-    int x = wrap_axis(u, WMS, sw, (int)MINU >> l, (int)MAXU >> l, 1);
-    int y = wrap_axis(v, WMT, sh, (int)MINV >> l, (int)MAXV >> l, 1);
     int3 p = int3(x, y, 0);
     switch (l) {
     case 1: return texm1.Load(p);
@@ -189,6 +203,7 @@ uint fetch_lv(int l, int u, int v) {
     default: return texm6.Load(p);
     }
 }
+uint fetch_lv(int l, int u, int v) { return load_lv(l, wrap_u(l, u), wrap_v(l, v)); }
 uint4 lerp8(uint4 a, uint4 b, uint w) { return (a * (256 - w) + b * w) >> 8; }
 // texel at level-0 coordinates (u, v) from mip level l
 uint4 sample_lv(int l, float u, float v, bool lin) {
@@ -200,8 +215,9 @@ uint4 sample_lv(int l, float u, float v, bool lin) {
     float u0f = floor(fu), v0f = floor(fv);
     uint wu = (uint)((fu - u0f) * 256.0), wv = (uint)((fv - v0f) * 256.0);
     int u0 = (int)u0f, v0 = (int)v0f;
-    uint4 t00 = texel(fetch_lv(l, u0, v0)), t10 = texel(fetch_lv(l, u0 + 1, v0));
-    uint4 t01 = texel(fetch_lv(l, u0, v0 + 1)), t11 = texel(fetch_lv(l, u0 + 1, v0 + 1));
+    int x0 = wrap_u(l, u0), x1 = wrap_u(l, u0 + 1), y0 = wrap_v(l, v0), y1 = wrap_v(l, v0 + 1);
+    uint4 t00 = texel(load_lv(l, x0, y0)), t10 = texel(load_lv(l, x1, y0));
+    uint4 t01 = texel(load_lv(l, x0, y1)), t11 = texel(load_lv(l, x1, y1));
     return lerp8(lerp8(t00, t10, wu), lerp8(t01, t11, wu), wv);
 }
 uint4 sample_tex(float u, float v, float lod) {
@@ -254,10 +270,15 @@ int4 sample_font(float u, float v, float lod) {
     float2 b = floor(float2(fu, fv));
     float4 wx = cr_weights(fu - b.x), wy = cr_weights(fv - b.y);
     float4 acc = 0;
+    int xs[4], ys[4];
+    [unroll] for (int j = 0; j < 4; j++) {
+        xs[j] = wrap_u(0, (int)b.x - 1 + j);
+        ys[j] = wrap_v(0, (int)b.y - 1 + j);
+    }
     [unroll] for (int y = 0; y < 4; y++) {
         float4 row = 0;
         [unroll] for (int x = 0; x < 4; x++)
-            row += (float4)texel(fetch_lv(0, (int)b.x - 1 + x, (int)b.y - 1 + y)) * wx[x];
+            row += (float4)texel(load_lv(0, xs[x], ys[y])) * wx[x];
         acc += row * wy[y];
     }
     float cov = saturate(acc.w / FONTAMAX);
@@ -269,6 +290,7 @@ int4 sample_font(float u, float v, float lod) {
 }
 
 void ps_main(PSIn i) {
+    PST = i.st;
     int2 P = int2(i.pos.xy);
     int S = (int)vp.z;
     int4 c = (IIP != 0) ? int4(i.col) : int4(i.fcol);

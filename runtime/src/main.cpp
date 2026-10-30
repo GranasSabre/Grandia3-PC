@@ -143,7 +143,7 @@ namespace kernel { extern bool g_dispatch_log; }
 namespace gs { extern bool g_gs_null; extern int g_gs_threads; extern double g_draw_stats_at; extern double g_log_draws_from; extern bool g_log_draws; extern double g_vram_dump_at; extern std::string g_vram_dump_path; }
 static bool g_watchdog_flag = false;
 namespace hw { extern bool g_poll_stats; }
-namespace gs { namespace gpu { extern bool g_no_uav_overlap, g_gpu_timing; } }
+namespace gs { namespace gpu { extern bool g_no_uav_overlap, g_gpu_timing, g_no_batch_join, g_frame_hashes, g_gpu_profile; } }
 namespace kernel { extern bool g_trace_syscalls; extern bool g_watchdog; extern bool g_native_perf; }
 
 static DWORD WINAPI emu_thread(void*) {
@@ -243,6 +243,9 @@ int main(int argc, char** argv) {
         else if (a == "--scene-skip-flag") { extern bool scene_skip_flag_test(); scene_skip_flag_test(); }
         else if (a == "--dispatch-log") kernel::g_dispatch_log = true;
         else if (a == "--uav-overlap") gs::gpu::g_no_uav_overlap = false;
+        else if (a == "--no-batch-join") gs::gpu::g_no_batch_join = true;
+        else if (a == "--frame-hashes") gs::gpu::g_frame_hashes = true;
+        else if (a == "--gpu-profile") gs::gpu::g_gpu_profile = true;
         else if (a == "--poll-stats") hw::g_poll_stats = true;
         else if (a == "--gpu-timing") gs::gpu::g_gpu_timing = true;
         else if (a == "--text-log") { extern void texthook_set_log(bool); texthook_set_log(true); }

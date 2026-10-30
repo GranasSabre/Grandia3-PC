@@ -1,7 +1,7 @@
 # Translated texture labels: takes the HD replacement of a texture (or the original, scaled up),
 # removes English labels and draws German ones in a similar style. Output goes to
 # lang/de_tex/<key>.png, which the renderer applies even with the HD textures switched off.
-#   python make_de_tex.py <texture pack dir> <original textures dir>... <out dir> [--preview file.png]
+#   python make_de_tex.py <texture pack dir> <original textures dir>... <out dir> [--preview file.png] [--lang fr]
 # Original textures: work/tex_src (static extraction) or a texdump folder (runtime keys).
 # Coordinates in SPECS are original texture pixels; the image is worked on at the pack's scale.
 import os, sys
@@ -138,6 +138,23 @@ SPECS = {
         dict(bg='clear', box=(0, 35, 128, 54), text='Optionen', x=1, cap=(38, 49), w=59, font='timesbd.ttf',
              fill=((255, 255, 255), (240, 240, 240))),
     ],
+}
+
+
+# other languages: same layout, German label -> translated label (--lang <code>)
+TEXTS = {
+    'fr': {
+        'Typ': 'Type', 'Bereich': 'Portée', 'Ziel': 'Cible', 'HILFE': 'AIDE', 'GESAMT': 'TOTAL', 'NOCH': 'SUIV.',
+        'EP': 'EXP', 'AUSWEICHEN': 'ESQUIVE', 'Gesamt': 'Total', 'Schaden': 'Dégâts', 'Höhe': 'Hauteur',
+        'Anteil': 'Part', 'NÄCHSTE AKTION': 'ACTION SUIV.', 'Abwehr': 'Défense', 'Angriff': 'Attaque',
+        'Tempo': 'Vitesse', 'NORMAL': 'NORMAL', 'HOCH': 'HAUT', 'RUNTER': 'BAS', 'Abbruch': 'Annule',
+        'Neuer Rekord!': 'Record !', 'KONTER': 'CONTRE', 'LUFT': 'AIR', 'ANG': 'ATQ', 'VER': 'DÉF', 'WID': 'RÉS',
+        'EP erhalten': 'EXP gagnée', 'Geld erhalten': 'Or gagné', 'Geld gesamt': 'Or total',
+        'Experten-Level-Up!': 'Niveau expert !', 'Magiestufe': 'Niv. magie', 'Skill-Stufe': 'Niv. compét.',
+        'Spezialstufe': 'Niv. spécial', 'ERGEBNIS': 'RÉSULTAT', 'K.O.': 'K.O.', 'Übersicht': 'Vue du ciel',
+        'DRÜCKEN': 'APPUYEZ', 'Taste': 'Appuyez', 'drücken': 'pour jouer', 'Neues Spiel': 'Nouvelle partie',
+        'Fortsetzen': 'Continuer', 'Optionen': 'Options',
+    },
 }
 
 
@@ -324,6 +341,11 @@ def main():
         i = args.index('--preview')
         prev = args[i + 1]
         del args[i:i + 2]
+    texts = {}
+    if '--lang' in args:
+        i = args.index('--lang')
+        texts = TEXTS[args[i + 1]]
+        del args[i:i + 2]
     pack, srcs, out = args[0], args[1:-1], args[-1]
     only = os.environ.get('ONLY')
     os.makedirs(out, exist_ok=True)
@@ -341,6 +363,7 @@ def main():
         k = img.width // orig.width
         before = img.copy()
         for s in specs:
+            s = dict(s, text=texts.get(s['text'], s['text']))
             if s['bg'] == 'plate':
                 img = plate_rebuild(img, s, k)
             elif s['bg'] == 'inpaint':

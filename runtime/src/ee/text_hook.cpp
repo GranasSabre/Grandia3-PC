@@ -5,7 +5,7 @@
 // (made from the game's own a o u A O U glyphs plus dots) with matching advance widths.
 //
 // Script text encoding: byte = font code + 0x20; ASCII letters keep their codes, space = 0xA0,
-// line break 0x08, end 0x0D (0xFF follows). Font: width table (s8 offset, u8 advance) per glyph,
+// line break 0x08, end 0x0D (0xFF and 0x00 follow; the text stops at the 0x00). Font: width table (s8 offset, u8 advance) per glyph,
 // then 16x16 4 bpp glyphs; glyph = code - 0x20.
 #include "../common.h"
 #include <windows.h>
@@ -18,6 +18,7 @@
 #include <vector>
 
 extern "C" void ee_001DA6A0(EEContext* c);
+extern "C" void ee_001D5E20(EEContext* c);
 namespace systext { void tick(); }
 void watch_range_k(u32 lo, u32 hi);  // kernel.cpp (analysis)
 
@@ -273,6 +274,41 @@ void font_tick() {
 
 using namespace texthook;
 
+// Window size of a translation like the game's converter: widest line of (advance + 1) per character,
+// 20 px per line, over all pages. pa: window parameters (x y w h style from +2), p: the text in the
+// loaded script (the same parameters precede it there and are updated too).
+static void fit_window(u8* pa, u32 p, const std::vector<u8>& tx, size_t m) {
+    if (!pa) return;
+    u16 ow = (u16)(pa[6] | pa[7] << 8), oh = (u16)(pa[8] | pa[9] << 8);
+    if (!g_font_tbl || ow == 0 || ow >= 1000 || oh == 0 || oh >= 1000) return;
+    // widest line and most lines over all pages (07 = next page); control sequences skipped
+    int w = 0, lw = 0, lines = 1, maxlines = 1;
+    for (size_t i = 0; i < m; i++) {
+        u8 b = tx[i];
+        if (b == 0x08) { w = std::max(w, lw); lw = 0; lines++; maxlines = std::max(maxlines, lines); continue; }
+        if (b == 0x07) { w = std::max(w, lw); lw = 0; lines = 1; continue; }
+        if (b < 0x20) { i += ctrl_args(b); continue; }
+        if (i + 1 < m && tx[i + 1] >= 0xF0) { lw += 13; i++; continue; }  // button symbol
+        if (b < 0x40) continue;
+        int g = b - 0x40;
+        lw += width_ptr(g_font_tbl, g)[1] + 1;
+    }
+    w = std::max(w, lw);
+    int h = maxlines * 20;
+    if (w == ow && h == oh) return;
+    pa[6] = (u8)w;
+    pa[7] = (u8)(w >> 8);
+    pa[8] = (u8)h;
+    pa[9] = (u8)(h >> 8);
+    u8* sc = mem::ee_ptr(p - 9);
+    if (sc && (sc[4] | sc[5] << 8) == ow && (sc[6] | sc[7] << 8) == oh) {
+        sc[4] = (u8)w; sc[5] = (u8)(w >> 8);
+        sc[6] = (u8)h; sc[7] = (u8)(h >> 8);
+    }
+    static int logged = 0;
+    if (logged++ < 20) log_write(LOG_MAIN, "translation: window %ux%u -> %dx%d (%d lines)", ow, oh, w, h, maxlines);
+}
+
 extern "C" void hook_msg_open(EEContext* c) {
     if (!g_loaded) load();
     u32 p = c->r[5].uw[0];
@@ -322,50 +358,40 @@ extern "C" void hook_msg_open(EEContext* c) {
             u32 dst = BUF_BASE + (g_slot++ % BUF_SLOTS) * BUF_SLOT;
             u8* d = mem::ee_ptr(dst);
             memcpy(d, t, pre);
-            size_t m = std::min<size_t>(it->second.size(), BUF_SLOT - 2 - pre);
+            size_t m = std::min<size_t>(it->second.size(), BUF_SLOT - 3 - pre);
             memcpy(d + pre, it->second.data(), m);
+            // end as in the script: 0D FF is a command, the text only stops at the 00 after it
+            // (without it the window went on with the rest of the slot's earlier message)
             d[pre + m] = 0x0D;
             d[pre + m + 1] = 0xFF;
+            d[pre + m + 2] = 0x00;
             c->r[5].ud[0] = dst;
             if (g_watch_msg) ::watch_range_k(dst, dst + (u32)it->second.size());
-            // window size like the game's converter: widest line of (advance + 1) per character, 20 px per line
-            u8* pa = mem::ee_ptr(c->r[4].uw[0]);
-            u16 ow = (u16)(pa[6] | pa[7] << 8), oh = (u16)(pa[8] | pa[9] << 8);
-            if (g_font_tbl && pa && ow > 0 && ow < 1000 && oh > 0 && oh < 1000) {
-                // widest line and most lines over all pages (07 = next page); control sequences skipped
-                int w = 0, lw = 0, lines = 1, maxlines = 1;
-                const std::vector<u8>& tx = it->second;
-                for (size_t i = 0; i < m; i++) {
-                    u8 b = tx[i];
-                    if (b == 0x08) { w = std::max(w, lw); lw = 0; lines++; maxlines = std::max(maxlines, lines); continue; }
-                    if (b == 0x07) { w = std::max(w, lw); lw = 0; lines = 1; continue; }
-                    if (b < 0x20) { i += ctrl_args(b); continue; }
-                    if (i + 1 < m && tx[i + 1] >= 0xF0) { lw += 13; i++; continue; }  // button symbol
-                    if (b < 0x40) continue;
-                    int g = b - 0x40;
-                    lw += width_ptr(g_font_tbl, g)[1] + 1;
-                }
-                w = std::max(w, lw);
-                lines = maxlines;
-                pa[6] = (u8)w;
-                pa[7] = (u8)(w >> 8);
-                int h = lines * 20;
-                pa[8] = (u8)h;
-                pa[9] = (u8)(h >> 8);
-                // the same values in the loaded script (x y w h style precede the text)
-                u8* sc = mem::ee_ptr(p - 9);
-                if (sc && (sc[4] | sc[5] << 8) == ow && (sc[6] | sc[7] << 8) == oh) {
-                    sc[4] = (u8)w; sc[5] = (u8)(w >> 8);
-                    sc[6] = (u8)h; sc[7] = (u8)(h >> 8);
-                }
-                static int logged = 0;
-                if (logged++ < 20)
-                    log_write(LOG_MAIN, "translation: window %ux%u -> %dx%d (params %02x%02x %02x%02x %02x%02x %02x%02x %02x%02x %02x)", ow, oh, w, h,
-                              pa[0], pa[1], pa[2], pa[3], pa[4], pa[5], pa[6], pa[7], pa[8], pa[9], pa[10]);
-            }
+            fit_window(mem::ee_ptr(c->r[4].uw[0]), p, it->second, m);
         }
     }
     ee_001DA6A0(c);
+}
+
+// The frame of a new window is queued (0x1D5E20, from the message opcode at 0x1DAE44) with the
+// script's size just before the message opens: it gets the translation's size here already (the
+// height only takes effect this way, the frame does not follow a later change).
+extern "C" void hook_msg_frame(EEContext* c) {
+    if (c->r[31].uw[0] == 0x1DAE4C) {
+        if (!g_loaded) load();
+        u32 p = c->r[16].uw[0];  // the text (passed to 0x1DA6A0 next)
+        const u8* t = mem::ee_ptr(p);
+        if (t && !g_tr.empty()) {
+            size_t n = 0;
+            while (n < 2048 && t[n] != 0x0D) n += 1 + ctrl_args(t[n]);
+            n = std::min<size_t>(n, 2048);
+            size_t pre = (n >= 4 && t[0] == 0x0E) ? 4 : 0;
+            auto it = g_tr.find(fnv(t + pre, n - pre));
+            if (it != g_tr.end())
+                fit_window(mem::ee_ptr(c->r[5].uw[0]), p, it->second, std::min<size_t>(it->second.size(), BUF_SLOT - 3 - pre));
+        }
+    }
+    ee_001D5E20(c);
 }
 
 void texthook_set_log(bool on) { texthook::g_log_texts = on; }

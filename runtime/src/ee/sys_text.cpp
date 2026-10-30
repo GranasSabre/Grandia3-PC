@@ -29,7 +29,7 @@
 // <u16> <text> 00): EE RAM is scanned a few MB per vertical blank for the opcode and an English text
 // is overwritten in place.
 // Font codes: space 0x80, ASCII, German/French letters = the patched kana glyphs 0x98..0xB0 + 0x20.
-// Field menu encoding: the same glyphs reached through their Shift-JIS codes (ぅうぇえぉおか).
+// Field menu encoding: the same glyphs reached through their Shift-JIS codes (FIELD_SJIS).
 #include "../common.h"
 #include "../memory.h"
 #include "../platform/platform.h"
@@ -62,6 +62,11 @@ static const char* const DE[26] = {"\xC3\xA4", "\xC3\xB6", "\xC3\xBC", "\xC3\x84
     "\xC3\xA0", "\xC3\xA2", "\xC3\xA7", "\xC3\xA9", "\xC3\xA8", "\xC3\xAA", "\xC3\xAB", "\xC3\xAE", "\xC3\xAF",
     "\xC3\xB4", "\xC3\xB9", "\xC3\xBB", "\xC3\x80", "\xC3\x87", "\xC3\x89", "\xC3\x88", "\xC3\x8A", "\xC3\x94",
     "\xC3\x82"};
+// their Shift-JIS codes in the field menu: the menu font's character list (GR3.MDT) puts the glyphs
+// 0x98.. at ぅうぇえぉおか が ワヲヴヵヶゎヮぢヂ○♪＋−一二三■＿
+static const u16 FIELD_SJIS[26] = {0x82A3, 0x82A4, 0x82A5, 0x82A6, 0x82A7, 0x82A8, 0x82A9, 0x82AA,
+    0x838F, 0x8392, 0x8394, 0x8395, 0x8396, 0x82EC, 0x838E, 0x82C0, 0x8361, 0x819B, 0x81F4, 0x817B,
+    0x817C, 0x88EA, 0x93F1, 0x8E4F, 0x81A1, 0x8151};
 
 static u32 fnv32(const u8* p, size_t n) {
     u32 h = 0x811C9DC5u;
@@ -97,7 +102,7 @@ static std::vector<u8> encode(const std::string& s, bool field, bool desc, bool 
         for (int j = 0; j < 26; j++)
             if (s.compare(i, 2, DE[j]) == 0) k = j;
         if (k >= 0) {
-            if (field) { out.push_back(0x82); out.push_back((u8)(0xA3 + k)); }
+            if (field) { out.push_back((u8)(FIELD_SJIS[k] >> 8)); out.push_back((u8)FIELD_SJIS[k]); }
             else put(0xB8 + k);
             i += 2;
             continue;

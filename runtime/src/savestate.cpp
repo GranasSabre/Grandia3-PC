@@ -24,7 +24,7 @@ namespace vif { void state(ss::Stream&); }
 namespace vu { void state(ss::Stream&); }
 namespace ipu { void state(ss::Stream&); }
 namespace spu2 { void state(ss::Stream&); }
-namespace gs { void state(ss::Stream&); }
+namespace gs { void state(ss::Stream&); void reraise_events(); }
 namespace iop { void state(ss::Stream&); }
 namespace iop::kern { void state(ss::Stream&); bool can_savestate(std::string* why); void after_state_load(); }
 namespace iop::pad { void state(ss::Stream&); }
@@ -215,6 +215,9 @@ void do_save() {
     if (slot < 0) return;
     double t0 = host_time_sec();
     gsp::sync(gsp::SYNC_STATE);  // the GS pipeline has executed everything
+    // interrupts it raised meanwhile belong to the saved state (a FINISH the game waits for at the
+    // end of the frame: without it the game waits forever after loading)
+    gsp::poll_events();
     auto payload = std::make_shared<std::vector<u8>>();
     payload->reserve(48u << 20);
     for (const Section& sec : SECTIONS) {
@@ -297,6 +300,7 @@ void do_load() {
     if (slot < 0) return;
     double t0 = host_time_sec();
     gsp::sync(gsp::SYNC_STATE);
+    gsp::poll_events();  // the old state's pending interrupts: replaced by the loaded state
     Header h;
     std::string sig, err;
     std::vector<u8> payload;
@@ -347,6 +351,7 @@ void do_load() {
         }
         first = false;
     }
+    gs::reraise_events();
     kernel::after_state_load();
     iop::kern::after_state_load();
     log_write(LOG_MAIN, "savestate: slot %d loaded (emulated time %.1f s, %.0f ms)", slot, h.emu_time, (host_time_sec() - t0) * 1000);
