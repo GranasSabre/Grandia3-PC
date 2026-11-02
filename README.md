@@ -34,8 +34,9 @@ works with this port, not with PCSX2.
 - Savestates everywhere (9 slots), skippable cutscenes and movies
 - Large dialogue windows for small screens (Steam Deck: automatic), sharp text, sharpening, filters
 - Steam Deck: detected automatically (16:10 view, full screen, large windows, controller shortcuts)
-- Languages: original English text or a complete German translation; more via `lang/<code>.tsv`
-- Subtitles for voiced cutscenes and movies (experimental, English, so far up to Alonso's ship): the
+- Controllers: XInput, and DualShock 4 / DualSense read directly over HID (`runtime/src/platform/pspad.cpp`)
+- Languages: original English text or complete German and French translations; more via `lang/<code>.tsv`
+- Subtitles for voiced cutscenes and movies (experimental, English, nearly the whole game): the
   runtime follows the voice stream on its way to the sound chip (`runtime/src/platform/subtitles.cpp`),
   the timings come from the voice-over script (`tools/subs`)
 - HD texture packs: PNG files in a `textures` folder replace the game's textures

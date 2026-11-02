@@ -44,6 +44,7 @@ Steam Deck
   full screen and large dialogue windows.
 - Controls: View + Menu = settings menu, View + R1 = save a savestate, View + L1 = load it.
   The settings menu and the savestate notes are drawn larger on the Deck; the menu scrolls.
+  "Quit game" at the end of the settings menu closes the game (it asks once more).
 - Tested on a Steam Deck (Proton Experimental): the field runs at 60 fps with the 60 fps option,
   cutscenes at 30 like the original. If a scene cannot reach 60 fps, the game drops back to its native
   30 fps there by itself. If an effect-heavy scene still runs below 30, set "Internal resolution" in the
@@ -54,7 +55,7 @@ Steam Deck
 
 Keys
 ----
-F1 / Back+Start   settings menu (the game pauses; change values with left/right)
+F1 / Back+Start   settings menu (the game pauses; change values with left/right); PS button too
 F3                60 fps on/off
 F4                sharpening on/off
 F5 / Back+R1      save a savestate (slot chosen in the F1 menu)
@@ -67,7 +68,11 @@ Tab (hold)        fast forward
 
 Keyboard (default, changeable in the settings): arrow keys = d-pad, Shift + arrows = run,
 S = Cross, D = Circle, A = Square, W = Triangle, Q/E = L1/R1, 1/3 = L2/R2, Enter = Start,
-Backspace = Select. Controllers (XInput) work out of the box, including rumble.
+Backspace = Select. Controllers work out of the box, including rumble: XInput controllers (Xbox and
+compatible) and, by USB cable or Bluetooth, the DualShock 4 and the DualSense (Cross/Circle/Square/
+Triangle as on the PS2, Share/Create or a touchpad click = Select, Options = Start, PS button = settings
+menu). A PlayStation controller is read directly only while no XInput controller is connected, so
+Steam Input and DS4Windows keep working as before.
 
 
 Features
@@ -84,8 +89,8 @@ Features
   (needs the widescreen view)
 - Sharp text at high resolutions, contrast adaptive sharpening, image filters
 - Separate volume for music, voices, effects and movies
-- Subtitles for voiced cutscenes and movies without a text box (experimental, English): so far from
-  the opening up to the night on Alonso's ship after the casino with Bianca; later scenes follow.
+- Subtitles for voiced cutscenes and movies without a text box (experimental, English): nearly the
+  whole game is covered, the ending included; only a few short lines are still missing.
   Switch: F1 menu "Subtitles in cutscenes". Please report wrong timing or wrong/missing lines.
 - Language: the original English text, German or French (complete fan translations, French is new
   and has seen little play testing so far). More languages can be added as lang\<code>.tsv files.

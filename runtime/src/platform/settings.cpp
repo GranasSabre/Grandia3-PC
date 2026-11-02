@@ -103,7 +103,7 @@ static void start_capture(int kind) {
     for (int vk = 0; vk < 256; vk++) g_prev_keys[vk] = (GetAsyncKeyState(vk) & 0x8000) != 0;
     XINPUT_STATE xs;
     g_prev_pad = ~0u;  // ignore buttons already held
-    if (XInputGetState(0, &xs) == ERROR_SUCCESS)
+    if (pad_state(&xs))
         g_prev_pad = xs.Gamepad.wButtons | (xs.Gamepad.bLeftTrigger > 64 ? 0x10000u : 0) | (xs.Gamepad.bRightTrigger > 64 ? 0x20000u : 0);
     std::wstring t = std::wstring(kind == 1 ? tr(L"Drücke jetzt die Taste für \"") : tr(L"Drücke jetzt die Controller-Taste für \"")) +
                      tr(ROW_NAME[r]) + tr(L"\"  (Esc = abbrechen)");
@@ -136,8 +136,8 @@ static void poll_capture() {
         }
     } else {
         XINPUT_STATE xs;
-        if (XInputGetState(0, &xs) != ERROR_SUCCESS) {
-            set_status(tr(L"Kein Controller gefunden (XInput, Anschluss 1).  Esc = abbrechen"));
+        if (!pad_state(&xs)) {
+            set_status(tr(L"Kein Controller gefunden (XInput, DualShock 4 oder DualSense).  Esc = abbrechen"));
             return;
         }
         u32 now = xs.Gamepad.wButtons | (xs.Gamepad.bLeftTrigger > 64 ? 0x10000u : 0) | (xs.Gamepad.bRightTrigger > 64 ? 0x20000u : 0);

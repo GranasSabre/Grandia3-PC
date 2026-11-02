@@ -1219,6 +1219,7 @@ void set_vibration(float small, float large) {
         v.wRightMotorSpeed = (WORD)(small * 65535.0f);  // high-frequency motor
     }
     XInputSetState(0, &v);
+    pad_rumble(g_cfg.vibration ? small : 0, g_cfg.vibration ? large : 0);
 }
 
 // ---------------------------------------------------------------------------
@@ -1287,7 +1288,7 @@ static PadState read_pad_now(int port) {
         }
     }
     XINPUT_STATE xs;
-    if (XInputGetState(0, &xs) == ERROR_SUCCESS) {
+    if (pad_state(&xs)) {
         u32 w = xs.Gamepad.wButtons | (xs.Gamepad.bLeftTrigger > 64 ? 0x10000u : 0) | (xs.Gamepad.bRightTrigger > 64 ? 0x20000u : 0);
         // Back+Start together opens the settings menu: not passed to the game
         if ((w & XINPUT_GAMEPAD_BACK) && (w & XINPUT_GAMEPAD_START)) w &= ~(u32)(XINPUT_GAMEPAD_BACK | XINPUT_GAMEPAD_START);

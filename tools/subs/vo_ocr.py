@@ -47,6 +47,31 @@ def grid(dark):
     return vcols, hrows
 
 
+def grid_fallback(dark, tmpl):
+    """for pages grid() cannot read: black bars, scribbles or a faint rule. The columns come from the
+    clean pages of the same document (snapped to the rules found here); a row rule is a thin line that
+    crosses every column, looked for over 5 pixel rows (scanned rules are broken or slightly skewed)."""
+    h, w = dark.shape
+    d = np.vstack([np.zeros((1, w), bool), dark, np.zeros((1, w), bool)]).astype(np.int8)
+    longest = np.zeros(w, int)
+    for x in range(w):
+        e = np.flatnonzero(np.diff(d[:, x]))
+        if len(e): longest[x] = (e[1::2] - e[0::2]).max()
+    found = [(a + b) // 2 for a, b in runs(longest > 300, 2) if b - a <= 20]   # wider = black bar
+    # the page offset that lines up most template columns with rules found here (ties: the smallest)
+    shift = max(((sum(any(abs(t + f - u - v) <= 10 for v in found) for t in tmpl), -abs(f - u)), f - u)
+                for f in found for u in tmpl)[1] if found else 0
+    vcols = []
+    for t in tmpl:
+        near = [v for v in found if abs(v - t - shift) <= 15]
+        vcols.append(min(near, key=lambda v: abs(v - t - shift)) if near else t + shift)
+    orr = dark.copy()
+    for s in range(1, 5): orr[:-s] |= dark[s:]
+    cov = np.stack([orr[:, a + 6:b - 6].mean(axis=1) for a, b in zip(vcols, vcols[1:])])
+    hrows = [(a + b) // 2 + 2 for a, b in runs((cov >= 0.55).all(axis=0), 1) if b - a <= 25]
+    return vcols, hrows
+
+
 def ocr(img, psm=6, extra=()):
     img.save(tmp)
     r = subprocess.run([TESS, tmp, 'stdout', '--psm', str(psm), '-l', 'eng', *extra, 'tsv'],
@@ -60,16 +85,22 @@ def ocr(img, psm=6, extra=()):
     return words
 
 
-rows_out = []
-for pi in range(first, last + 1):
-    ims = [Image.open(os.path.join(rdir, '%s%03d.png' % (k, pi))) for k in ('p', 'm', 'ink', 'g')]
+rows_out, good_cols, deferred = [], [], []
+
+
+def bad(g):
+    return not g or len(g[0]) != 6 or len(g[1]) < 3
+
+
+def do_page(pi, tmpl=None):
+    ims =[Image.open(os.path.join(rdir, '%s%03d.png' % (k, pi))) for k in ('p', 'm', 'ink', 'g')]
     fills = (255, 255, 0, 255)
     def load(angle):
         a = [im.rotate(angle, Image.NEAREST, fillcolor=f) if angle else im for im, f in zip(ims, fills)]
         return (np.array(a[0]) < 128, np.array(a[1]) < 128, np.array(a[2]) > 0, np.array(a[3]) < 200)
     full, mlay, ink, gray = load(0)
     g = grid(full)
-    if not g or len(g[0]) != 6 or len(g[1]) < 3:
+    if bad(g):
         # skewed scan: pick the angle that gives the sharpest horizontal rules
         small = ims[0].resize((ims[0].width // 4, ims[0].height // 4))
         best = max((np.var((np.array(small.rotate(a / 20, Image.BILINEAR, fillcolor=255)) < 128).sum(axis=1)), a / 20)
@@ -77,11 +108,16 @@ for pi in range(first, last + 1):
         full, mlay, ink, gray = load(best[1])
         g = grid(full)
         print('page', pi, 'deskew %.2f deg' % best[1], flush=True)
-    if not g or len(g[1]) < 3:
-        print('page', pi, 'FAILED grid', g, flush=True); continue
+    if bad(g):
+        if tmpl is None:
+            deferred.append(pi); return       # again once the clean pages give the column layout
+        g = grid_fallback(full, tmpl)
+        if len(g[1]) < 3:
+            print('page', pi, 'FAILED grid', g, flush=True); return
+        print('page', pi, 'fallback grid', g[0], len(g[1]), 'rules', flush=True)
+    else:
+        good_cols.append(g[0])
     vcols, hrows = g
-    if len(vcols) != 6:
-        print('page', pi, 'columns', vcols)
     # erase grid lines for OCR
     clean = full.copy()
     for x in vcols: clean[:, max(0, x - 4):x + 5] = False
@@ -163,6 +199,15 @@ for pi in range(first, last + 1):
                              scene=' '.join(cell[2]), who=' '.join(cell[3]),
                              text=' / '.join(cell[4]), flags=','.join(sorted(flags))))
     print('page', pi, 'rows', len(bands), flush=True)
+
+
+for pi in range(first, last + 1):
+    do_page(pi)
+if deferred and good_cols:
+    tmpl = [int(v) for v in np.median(np.array(good_cols), axis=0)]
+    for pi in deferred:
+        do_page(pi, tmpl)
+rows_out.sort(key=lambda r: (r['page'], r['y0']))
 
 with open(out, 'w', encoding='utf-8', newline='') as f:
     wr = csv.writer(f, delimiter='\t')

@@ -41,7 +41,7 @@ std::vector<Item> g_items;
 std::atomic<bool> g_open{false};
 int g_sel = 1;
 int g_first = 0;   // first row shown when the list scrolls
-bool g_disc_confirm = false;
+bool g_disc_confirm = false, g_quit_confirm = false;
 std::wstring g_note;
 std::mutex g_mu;
 std::vector<u32> g_px;
@@ -184,6 +184,16 @@ void build_items() {
     g_items.push_back({L"Zurück zum Spiel", [] { return std::wstring(); }, [](int dir) {
                            if (dir == 0) overlay_set_open(false);
                        }});
+    g_items.push_back({L"Spiel beenden", [] {
+                           return std::wstring(g_quit_confirm ? L"Nochmal bestätigen!" : L"beenden");
+                       },
+                       [](int dir) {
+                           if (dir != 0) return;
+                           if (!g_quit_confirm) { g_quit_confirm = true; g_note = L"Nicht gespeicherter Fortschritt geht verloren."; return; }
+                           save_config();
+                           // the same way out as closing the window
+                           PostMessageW((HWND)main_hwnd(), WM_CLOSE, 0, 0);
+                       }});
 }
 
 // GDI rendering of the panel at the requested height (BGRA, straight alpha)
@@ -265,7 +275,7 @@ void render_locked() {
         DrawTextW(dc, platform::tr(it.label), -1, &lr, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
         std::wstring v = it.value();
         if (!v.empty()) {
-            bool action = v == L"öffnen" || v == L"speichern" || v == L"laden";
+            bool action = v == L"öffnen" || v == L"speichern" || v == L"laden" || v == L"beenden";
             v = platform::tr(v);
             if (i == g_sel && it.change && !action) v = L"‹  " + v + L"  ›";
             SetTextColor(dc, i == g_sel ? RGB(255, 225, 140) : RGB(220, 200, 140));
@@ -299,7 +309,7 @@ void render_locked() {
 void move_sel(int d) {
     int n = (int)g_items.size();
     do { g_sel = (g_sel + d + n) % n; } while (g_items[g_sel].header);
-    if (g_disc_confirm) { g_disc_confirm = false; g_note.clear(); }
+    if (g_disc_confirm || g_quit_confirm) { g_disc_confirm = g_quit_confirm = false; g_note.clear(); }
 }
 
 void invoke(int dir) {
@@ -318,7 +328,7 @@ void overlay_set_open(bool on) {
     if (on) {
         build_items();
         if (g_sel <= 0 || g_sel >= (int)g_items.size() || g_items[g_sel].header) g_sel = 1;
-        g_disc_confirm = false;
+        g_disc_confirm = g_quit_confirm = false;
         g_note.clear();
         g_drawn = 0;
         g_open = true;
@@ -365,7 +375,7 @@ void overlay_poll_controller() {
     static WORD prev = 0;
     static double next_repeat = 0;
     XINPUT_STATE xs;
-    if (XInputGetState(0, &xs) != ERROR_SUCCESS) { prev = 0; return; }
+    if (!pad_state(&xs)) { prev = 0; return; }
     WORD b = xs.Gamepad.wButtons;
     if (xs.Gamepad.sThumbLY > 16000) b |= XINPUT_GAMEPAD_DPAD_UP;
     if (xs.Gamepad.sThumbLY < -16000) b |= XINPUT_GAMEPAD_DPAD_DOWN;
@@ -377,7 +387,8 @@ void overlay_poll_controller() {
     if (fresh & dirs) next_repeat = t + 0.35;
     else if ((b & dirs) && t >= next_repeat) { fresh |= b & dirs; next_repeat = t + 0.09; }
     prev = b;
-    bool combo = (b & XINPUT_GAMEPAD_BACK) && (b & XINPUT_GAMEPAD_START) && (fresh & (XINPUT_GAMEPAD_BACK | XINPUT_GAMEPAD_START));
+    bool combo = ((b & XINPUT_GAMEPAD_BACK) && (b & XINPUT_GAMEPAD_START) && (fresh & (XINPUT_GAMEPAD_BACK | XINPUT_GAMEPAD_START))) ||
+                 (fresh & PAD_GUIDE);  // PS button
     if (!overlay_open()) {
         if (combo) overlay_set_open(true);
         return;

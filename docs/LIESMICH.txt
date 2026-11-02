@@ -51,6 +51,7 @@ Steam Deck
   Vollbild und große Dialogfenster.
 - Bedienung: Ansicht + Menü = Einstellungsmenü, Ansicht + R1 = Savestate speichern, Ansicht + L1 = laden.
   Einstellungsmenü und Savestate-Meldungen sind auf dem Deck größer; das Menü scrollt.
+  "Spiel beenden" am Ende des Einstellungsmenüs schließt das Spiel (mit einer Rückfrage).
 - Auf einem Steam Deck getestet (Proton Experimental): Im Feld läuft das Spiel mit der 60-fps-Option
   mit 60 fps, Zwischensequenzen wie im Original mit 30. Schafft eine Szene keine 60 fps, schaltet das
   Spiel dort von selbst auf seine eigenen 30 fps zurück. Läuft eine Szene mit vielen Effekten trotzdem
@@ -61,7 +62,7 @@ Steam Deck
 
 Tasten
 ------
-F1 / Back+Start   Einstellungsmenü (das Spiel pausiert)
+F1 / Back+Start   Einstellungsmenü (das Spiel pausiert); auch die PS-Taste
 F3                60 fps ein/aus
 F4                Nachschärfen ein/aus
 F5 / Back+R1      Savestate speichern (Slot im F1-Menü)
@@ -74,7 +75,11 @@ Tab (halten)      Schneller Vorlauf
 
 Tastatur (Standard, im Einstellungsfenster änderbar): Pfeiltasten = Steuerkreuz, Umschalt + Pfeile =
 Rennen, S = Kreuz, D = Kreis, A = Quadrat, W = Dreieck, Q/E = L1/R1, 1/3 = L2/R2, Enter = Start,
-Rücktaste = Select. Controller (XInput) funktionieren direkt, mit Vibration.
+Rücktaste = Select. Controller funktionieren direkt, mit Vibration: XInput-Controller (Xbox und
+kompatible) sowie per USB-Kabel oder Bluetooth DualShock 4 und DualSense (Kreuz/Kreis/Quadrat/Dreieck
+wie auf der PS2, Share/Create oder Klick aufs Touchpad = Select, Options = Start, PS-Taste =
+Einstellungsmenü). Ein PlayStation-Controller wird nur direkt gelesen, solange kein XInput-Controller
+angeschlossen ist; Steam Input und DS4Windows funktionieren also wie bisher.
 
 
 Funktionen
@@ -91,8 +96,8 @@ Funktionen
 - Scharfe Schrift bei hoher Auflösung, Nachschärfen, Bildfilter
 - Getrennte Lautstärke für Musik, Sprache, Effekte und Filme
 - Untertitel für vertonte Zwischensequenzen und Filme ohne Textfenster (experimentell, vorerst
-  englisch): bisher vom Intro bis zur Nacht auf Alonsos Schiff nach dem Casino mit Bianca; spätere
-  Szenen folgen. Schalter: F1-Menü "Untertitel in Zwischensequenzen" (grandia3.ini: subtitles).
+  englisch): fast das ganze Spiel samt Ende; es fehlen nur noch wenige kurze Zeilen.
+  Schalter: F1-Menü "Untertitel in Zwischensequenzen" (grandia3.ini: subtitles).
   Fehler wie falsches Timing oder falsche/fehlende Zeilen bitte melden.
 - HD-Texturpakete: Bilder im Ordner "textures" neben dem Programm ersetzen die Texturen des Spiels
   (nicht in diesem Archiv). Ein inoffizielles 4x-Paket (7,5 GB, zwei Teile - beide neben die exe

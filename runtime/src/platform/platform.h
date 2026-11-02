@@ -6,6 +6,7 @@
 
 extern "C" int g_ee_patch[8];
 struct ID3D11Device;
+struct _XINPUT_STATE;
 struct HWND__;
 struct tagMSG;
 struct ID3D11DeviceContext;
@@ -123,7 +124,12 @@ struct PadState {
     u8 pressure[12];
 };
 PadState read_pad(int port);
-void set_vibration(float small, float large);  // DualShock motors -> XInput controller 1
+void set_vibration(float small, float large);  // DualShock motors -> XInput controller 1 / PlayStation controller
+// controller state in the XInput layout: XInput controller 1, or else a DualShock 4 / DualSense over
+// HID (pspad.cpp); its PS button sets PAD_GUIDE
+bool pad_state(::_XINPUT_STATE* xs);
+void pad_rumble(float small, float large);
+const u32 PAD_GUIDE = 0x0400;
 void default_input(Config& c);
 void open_settings(HWND__* parent);
 
