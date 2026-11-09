@@ -156,11 +156,11 @@ def movie_left(path):
 
 
 def movie_activity(name):
-    r = cached('mov2_' + name)
+    r = cached('mov3_' + name)
     if r: return r
     rate, pcm = movie_left(mov_path[name])
     jp = movie_left(os.path.join(mov_jp, name + '.MOV'))[1] if os.path.exists(os.path.join(mov_jp, name + '.MOV')) else None
-    return level('mov2_' + name, pcm, jp, rate)
+    return level('mov3_' + name, pcm, jp, rate)
 
 
 def scores(act):

@@ -119,10 +119,18 @@ float view_aspect() {
 
 float hud_factor() { return 4.0f / 3.0f / view_aspect(); }
 
+static std::string choose_image(const wchar_t* title);
+
 std::string choose_disc_image(int disc) {
-    wchar_t file[MAX_PATH * 4] = L"";
     wchar_t title[160];
     swprintf(title, 160, tr(L"Grandia III (USA) Disc %d: Abbild deiner Disc wählen (ISO)"), disc);
+    return choose_image(title);
+}
+
+std::string choose_jp_image() { return choose_image(tr(L"Japanische Stimmen: Abbild von Grandia III (Japan) Disc 1 wählen (ISO)")); }
+
+static std::string choose_image(const wchar_t* title) {
+    wchar_t file[MAX_PATH * 4] = L"";
     OPENFILENAMEW of{};
     of.lStructSize = sizeof(of);
     of.hwndOwner = nullptr;  // before the game window exists
@@ -204,7 +212,11 @@ void load_config(const std::string& path) {
         else if (k == "movie_skip") g_cfg.movie_skip = iv != 0;
         else if (k == "cutscene_skip") g_cfg.cutscene_skip = iv != 0;
         else if (k == "subtitles") g_cfg.subtitles = iv != 0;
-        else if (k == "state_slot") g_cfg.state_slot = iv < 1 ? 1 : iv > 9 ? 9 : iv;
+        else if (k == "contact_battles") g_cfg.contact_battles = iv != 0;
+        else if (k == "jp_voices") g_cfg.jp_voices = iv != 0;
+        else if (k == "state_slot") g_cfg.state_slot = iv < 0 ? 1 : iv > 9 ? 9 : iv;
+        else if (k == "autosave_state") g_cfg.autosave_state = iv != 0;
+        else if (k == "menu_size") g_cfg.menu_size = iv < 100 ? 100 : iv > 200 ? 200 : iv;
         else if (k == "gs_thread") g_cfg.gs_thread = iv != 0;
         else if (k == "language") { g_cfg.language = v; for (char& ch : g_cfg.language) ch = (char)tolower((unsigned char)ch); }
         else if (k == "big_text") g_cfg.big_text = iv < 0 ? -1 : (iv ? 1 : 0);
@@ -221,6 +233,7 @@ void load_config(const std::string& path) {
         else if (k == "console") g_cfg.console = iv != 0;
         else if (k == "iso_path") g_cfg.iso_path = v;
         else if (k == "iso_path2") g_cfg.iso_path2 = v;
+        else if (k == "iso_path_jp") g_cfg.iso_path_jp = v;
         else if (k == "save_dir") g_cfg.save_dir = v;
         else if (k == "key_run") g_cfg.key_run = (int)strtol(v.c_str(), nullptr, 0);
         else if (k == "renderer") g_cfg.renderer = (v == "software" || v == "0") ? 0 : 1;
@@ -272,7 +285,13 @@ void save_config() {
     fprintf(f, "; START or SELECT skips movies (also those the original does not let you skip)\nmovie_skip = %d\n", g_cfg.movie_skip);
     fprintf(f, "; START skips cutscenes (they run invisibly at high speed until they end)\ncutscene_skip = %d\n", g_cfg.cutscene_skip);
     fprintf(f, "; subtitles for voiced cutscenes (lang\\sub_<language>.tsv)\nsubtitles = %d\n", g_cfg.subtitles);
-    fprintf(f, "; savestate slot used by F5 (save) and F9 (load)\nstate_slot = %d\n", g_cfg.state_slot);
+    fprintf(f, "; 0 = touching a monster in the field starts no battle (story battles still happen)\ncontact_battles = %d\n", g_cfg.contact_battles);
+    fprintf(f, "; Japanese voices (cutscenes, battles, movies) from your own Grandia III (Japan) disc 1 image:\n"
+               "; iso_path_jp in [Paths], or disc1_jp.iso / \"Grandia III (Japan) (Disc 1).iso\" next to the game or the US image\n"
+               "jp_voices = %d\n", g_cfg.jp_voices);
+    fprintf(f, "; savestate slot used by F5 (save) and F9 (load); 0 = Auto (load only)\nstate_slot = %d\n", g_cfg.state_slot);
+    fprintf(f, "; 1 = savestate into slot Auto (savestates\\slot0.g3s) a few seconds after every map change\nautosave_state = %d\n", g_cfg.autosave_state);
+    fprintf(f, "; size of the F1 menu in percent (100 .. 200; a larger menu scrolls)\nmenu_size = %d\n", g_cfg.menu_size);
     fprintf(f, "integer_scaling = %d\n", g_cfg.integer_scaling);
     fprintf(f, "show_fps = %d\n", g_cfg.show_fps);
     fprintf(f, "; 1 = normal game speed, 0 = fast forward (4 times as fast, like holding Tab)\nframe_limit = %d\n", g_cfg.frame_limit);
@@ -281,6 +300,7 @@ void save_config() {
             g_cfg.vol_music, g_cfg.vol_voice, g_cfg.vol_sfx, g_cfg.vol_movie);
     fprintf(f, "\n[Paths]\n; disc images of your own copy of Grandia III (USA): disc 1, disc 2\niso_path = %s\niso_path2 = %s\nsave_dir = %s\n",
             g_cfg.iso_path.c_str(), g_cfg.iso_path2.c_str(), g_cfg.save_dir.c_str());
+    fprintf(f, "; Grandia III (Japan) disc 1, only for jp_voices\niso_path_jp = %s\n", g_cfg.iso_path_jp.c_str());
     fprintf(f, "; inserted disc (1 or 2; the F1 menu switches and restarts)\ndisc = %d\n", g_cfg.disc);
     fprintf(f, "\n[Input]\n; Windows virtual-key codes (hex)\n");
     for (int i = 0; i < 16; i++) fprintf(f, "key_%s = 0x%02X\n", KEYNAMES[i], g_cfg.keymap[i]);
@@ -362,6 +382,9 @@ static bool g_final_shot_req = false;
 static std::atomic<bool> g_closed{false};
 static bool g_is_fullscreen = false;
 static RECT g_windowed_rect;
+// fast forward while Tab (window thread) or Back+RT (input polling) is held
+static std::atomic<bool> g_ff_key{false}, g_ff_pad{false};
+bool fast_forward() { return g_ff_key.load(std::memory_order_relaxed) || g_ff_pad.load(std::memory_order_relaxed); }
 
 static std::mutex g_frame_mutex;
 static std::vector<u32> g_frame;
@@ -510,17 +533,17 @@ static LRESULT CALLBACK wndproc(HWND h, UINT msg, WPARAM wp, LPARAM lp) {
             else g_cfg.sharpen = last ? last : 60;
             return 0;
         }
-        if (wp == VK_TAB) { g_cfg.frame_limit = 0; return 0; }
+        if (wp == VK_TAB) { g_ff_key = true; return 0; }
         g_keys[wp & 0xFF] = true;
         return 0;
     case WM_KEYUP:
     case WM_SYSKEYUP:
-        if (wp == VK_TAB) { g_cfg.frame_limit = 1; return 0; }
+        if (wp == VK_TAB) { g_ff_key = false; return 0; }
         g_keys[wp & 0xFF] = false;
         return 0;
     case WM_KILLFOCUS:
         memset(g_keys, 0, sizeof(g_keys));
-        g_cfg.frame_limit = 1;  // the Tab release is lost when the focus moves while it is held
+        g_ff_key = false;  // the Tab release is lost when the focus moves while it is held
         break;
     }
     return DefWindowProcW(h, msg, wp, lp);
@@ -814,6 +837,7 @@ static void draw_present(ID3D11ShaderResourceView* srv, int tex_w, int tex_h) {
         int target = (int)(wh * 0.86f);
         int ow = 0, oh = 0;
         u64 ver = 0;
+        overlay_set_target_w((int)(ww * 0.96f));
         if (overlay_pixels(target, g_ovl_px, ow, oh, ver) && ow > 0 && oh > 0) {
             if (!g_ovl_tex || ow != g_ovl_w || oh != g_ovl_h) {
                 if (g_ovl_srv) g_ovl_srv->Release();
@@ -865,10 +889,12 @@ static void draw_present(ID3D11ShaderResourceView* srv, int tex_w, int tex_h) {
             }
         }
     }
-    if (g_cfg.show_fps && !overlay_open() && g_ps_overlay && g_blend_alpha) {
+    // the frame rate label (option show_fps); while fast forwarding it says so, also without the option
+    bool fast = (fast_forward() || g_cfg.frame_limit == 0) && !skip_active();
+    if ((g_cfg.show_fps || fast) && !overlay_open() && g_ps_overlay && g_blend_alpha) {
         int ow = 0, oh = 0;
         u64 ver = 0;
-        if (fps_pixels((int)(wh * 0.86f), std::min(60, (int)(g_game_fps + 0.5)), g_fps_px, ow, oh, ver) && ow > 0 && oh > 0) {
+        if (fps_pixels((int)(wh * 0.86f), fast ? -1 : std::min(60, (int)(g_game_fps + 0.5)), g_fps_px, ow, oh, ver) && ow > 0 && oh > 0) {
             if (!g_fps_tex || ow != g_fps_w || oh != g_fps_h) {
                 if (g_fps_srv) g_fps_srv->Release();
                 if (g_fps_tex) g_fps_tex->Release();
@@ -1288,6 +1314,7 @@ static PadState read_pad_now(int port) {
         }
     }
     XINPUT_STATE xs;
+    g_ff_pad = false;  // also when the controller goes away while the combination is held
     if (pad_state(&xs)) {
         u32 w = xs.Gamepad.wButtons | (xs.Gamepad.bLeftTrigger > 64 ? 0x10000u : 0) | (xs.Gamepad.bRightTrigger > 64 ? 0x20000u : 0);
         // Back+Start together opens the settings menu: not passed to the game
@@ -1303,6 +1330,11 @@ static PadState read_pad_now(int port) {
             rb_was = rb;
             lb_was = lb;
             if (rb || lb) w &= ~(u32)(XINPUT_GAMEPAD_BACK | XINPUT_GAMEPAD_RIGHT_SHOULDER | XINPUT_GAMEPAD_LEFT_SHOULDER);
+        }
+        // Back+RT held = fast forward, like Tab on the keyboard (Steam Deck: View + R2)
+        {
+            g_ff_pad = (w & XINPUT_GAMEPAD_BACK) && (w & 0x20000u);
+            if (g_ff_pad) w &= ~(u32)(XINPUT_GAMEPAD_BACK | 0x20000u);
         }
         for (int i = 0; i < 16; i++)
             if (g_cfg.padmap[i] & w) b |= (u16)(1 << i);

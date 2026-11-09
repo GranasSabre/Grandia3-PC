@@ -292,6 +292,43 @@ static bool battle_loaded() {
     return score > 0;
 }
 
+// Option contact_battles: the field starts a battle when the party touches a monster only while the
+// byte 0x2F64D8 is not 0 (check at 0x285ABC; the game sets it once at field start from SYSTEM.INI
+// [FIELD] Encount, default 1, and never changes it). Story battles do not go through it. Written
+// only while FIELD.BIN is in memory (its header "MWo3" at the load address 0x21ED80).
+static void field_options() {
+    u32 load;
+    memcpy(&load, &mem::ram[0x21ED88], 4);
+    if (memcmp(&mem::ram[0x21ED80], "MWo3", 4) != 0 || load != 0x21ED80) return;
+    mem::ram[0x2F64D8] = platform::config().contact_battles ? 1 : 0;
+}
+
+// Automatic savestate (option autosave_state): five seconds of game time after the game read a map
+// file, at a moment a savestate is allowed (no movie, no cutscene skip, no other request), quietly
+// into slot Auto. A map change while waiting starts the five seconds again.
+static std::atomic<bool> g_autosave_cancel{false};  // a savestate was loaded: no automatic one for the old map
+
+static void autosave_tick() {
+    static u32 seen = 0;
+    static double due = -1;
+    u32 n = cdvd::map_loads();
+    if (n != seen) {
+        seen = n;
+        due = g_emu_time + 5.0;
+    }
+    if (g_autosave_cancel.exchange(false)) due = -1;
+    if (due < 0 || g_emu_time < due) return;
+    if (!platform::config().autosave_state) { due = -1; return; }
+    if (platform::skip_active() || movie_running() || ss::pending()) {
+        if (g_emu_time > due + 120.0) due = -1;  // a long movie or menu: given up until the next map
+        return;
+    }
+    if (ss::request_auto_save()) {
+        log_write(LOG_KERNEL, "autosave: requested (map file read %u)", n);
+        due = -1;
+    }
+}
+
 bool g_test_scene_skip_flag = false;  // --scene-skip-flag (test)
 bool g_dispatch_log = false;  // --dispatch-log: indirect call targets per second -> dispatch_log.txt
 static std::unordered_map<u32, u32> g_dhist;
@@ -693,12 +730,12 @@ static void update_time() {
         g_time_base += host_time_sec() - t0;
     }
     {
-        // fast forward (Tab held, frame_limit 0): emulated time runs 4 times as fast; the time base
+        // fast forward (Tab or Back+RT held, or frame_limit 0): emulated time runs 4 times as fast; the time base
         // moves so the emulated clock continues where it was
         // cutscene skip: time runs 100 times as fast; the game advances a fixed step per frame and
         // runs as fast as the emulation can (nothing is drawn or mixed meanwhile)
         static int limit = 1;
-        int now_limit = platform::skip_active() ? 2 : platform::config().frame_limit;
+        int now_limit = platform::skip_active() ? 2 : platform::fast_forward() ? 0 : platform::config().frame_limit;
         if (now_limit != limit) {
             limit = now_limit;
             double h = host_time_sec();
@@ -787,6 +824,8 @@ static void update_time() {
         if (g_preview_vblanks.load(std::memory_order_relaxed) > 0) g_preview_vblanks.fetch_sub(1);
         gs::on_vblank_start();
         frame_rate_option();
+        field_options();
+        autosave_tick();
         ::texthook::font_tick();
         raise_intc(INTC_VBLANK_S);
         if (g_vsync_flag_ptr) {
@@ -1648,6 +1687,7 @@ void state(ss::Stream& s) {
 // after a restore: every thread continues on a new fiber from its resume point; the clock goes on
 // from the saved emulated time
 void after_state_load() {
+    g_autosave_cancel = true;
     for (void* f : g_dead_fibers) DeleteFiber(f);
     g_dead_fibers.clear();
     for (auto& t : g_threads) {

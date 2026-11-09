@@ -9,6 +9,7 @@
 #include "ee/kernel.h"
 #include "hw/ipu.h"
 #include "hw/gspipe.h"
+#include "iop/cdvd.h"
 #include "platform/platform.h"
 #include <windows.h>
 #include <compressapi.h>
@@ -80,6 +81,7 @@ static std::string exe_dir() {
     return s.substr(0, s.find_last_of("\\/"));
 }
 std::string slot_path(int slot) { return exe_dir() + "\\savestates\\slot" + std::to_string(slot) + ".g3s"; }
+std::wstring slot_label(int slot) { return slot == AUTO_SLOT ? std::wstring(L"Auto") : std::to_wstring(slot); }
 
 static bool read_header(FILE* f, Header& h) {
     return fread(&h, sizeof(h), 1, f) == 1 && memcmp(h.magic, MAGIC, 8) == 0;
@@ -105,15 +107,28 @@ bool slot_exists(int slot, std::string* when) {
 static std::atomic<int> g_save_slot{-1}, g_load_slot{-1};
 static double g_req_time = 0;  // emulated time of the request (gives up after a while)
 static std::atomic<bool> g_writing{false};
+static std::atomic<bool> g_quiet{false};  // automatic savestate: no notices
 
 void request_save(int slot) {
+    if (slot == AUTO_SLOT) {
+        platform::show_notice(platform::tr(L"Slot Auto"), platform::tr(L"wird beim Kartenwechsel automatisch beschrieben; zum Speichern einen anderen Slot wählen"), 3.0);
+        return;
+    }
     if (g_writing) { platform::show_notice(platform::tr(L"Speichern läuft noch …"), L"", 2.0); return; }
+    g_quiet = false;
     g_req_time = -1;
     g_save_slot = slot;
 }
+bool request_auto_save() {
+    if (g_writing || pending()) return false;
+    g_quiet = true;
+    g_req_time = -1;
+    g_save_slot = AUTO_SLOT;
+    return true;
+}
 void request_load(int slot) {
     if (!slot_exists(slot)) {
-        platform::show_notice(L"Slot " + std::to_wstring(slot) + platform::tr(L" ist leer"), L"", 2.0);
+        platform::show_notice(L"Slot " + slot_label(slot) + platform::tr(L" ist leer"), L"", 2.0);
         return;
     }
     g_load_slot = slot;
@@ -143,7 +158,7 @@ bool can_save(std::string* why) {
         if (g_req_time < 0) g_req_time = now;
         if (now - g_req_time > 3.0) {
             log_write(LOG_MAIN, "savestate: not possible now (%s)", w.c_str());
-            platform::show_notice(platform::tr(L"Speichern gerade nicht möglich"), platform::tr(widen(w)), 3.0);
+            if (!g_quiet) platform::show_notice(platform::tr(L"Speichern gerade nicht möglich"), platform::tr(widen(w)), 3.0);
             g_save_slot = -1;
         }
         if (why) *why = w;
@@ -213,6 +228,7 @@ static bool compress_xpress(const std::vector<u8>& in, std::vector<u8>& out) {
 void do_save() {
     int slot = g_save_slot.exchange(-1);
     if (slot < 0) return;
+    bool quiet = g_quiet.exchange(false);
     double t0 = host_time_sec();
     gsp::sync(gsp::SYNC_STATE);  // the GS pipeline has executed everything
     // interrupts it raised meanwhile belong to the saved state (a FINISH the game waits for at the
@@ -246,7 +262,7 @@ void do_save() {
     log_write(LOG_MAIN, "savestate: slot %d captured (%.1f MB, %.0f ms)", slot, payload->size() / 1048576.0, (t1 - t0) * 1000);
     // compression and writing run beside the emulation
     g_writing = true;
-    std::thread([payload, sig, h, slot]() mutable {
+    std::thread([payload, sig, h, slot, quiet]() mutable {
         std::vector<u8> comp;
         h.compressed = compress_xpress(*payload, comp) ? 1 : 0;
         const std::vector<u8>& data = h.compressed ? comp : *payload;
@@ -260,7 +276,8 @@ void do_save() {
         if (f) ok = (fclose(f) == 0) && ok;
         if (ok) ok = MoveFileExA(tmp.c_str(), path.c_str(), MOVEFILE_REPLACE_EXISTING) != 0;
         log_write(LOG_MAIN, "savestate: slot %d %s (%.1f MB)", slot, ok ? "written" : "WRITE FAILED", data.size() / 1048576.0);
-        platform::show_notice(ok ? platform::tr(L"Gespeichert in Slot ") + std::to_wstring(slot) : std::wstring(platform::tr(L"Speichern fehlgeschlagen")), L"", 2.0);
+        if (!quiet || !ok)
+            platform::show_notice(ok ? platform::tr(L"Gespeichert in Slot ") + std::to_wstring(slot) : std::wstring(platform::tr(L"Speichern fehlgeschlagen")), L"", 2.0);
         g_writing = false;
     }).detach();
 }
@@ -352,10 +369,11 @@ void do_load() {
         first = false;
     }
     gs::reraise_events();
+    cdvd::refresh_tables_in_ram();  // a savestate of a session with the other voice set
     kernel::after_state_load();
     iop::kern::after_state_load();
     log_write(LOG_MAIN, "savestate: slot %d loaded (emulated time %.1f s, %.0f ms)", slot, h.emu_time, (host_time_sec() - t0) * 1000);
-    platform::show_notice(L"Slot " + std::to_wstring(slot) + platform::tr(L" geladen"), L"", 2.0);
+    platform::show_notice(L"Slot " + slot_label(slot) + platform::tr(L" geladen"), L"", 2.0);
 }
 
 }  // namespace ss

@@ -153,6 +153,7 @@ void iop_imp_cdvdman_6(IOPContext* c) {               // Read(lsn, sectors, buf,
     LOG(LOG_CDVD, "IOP sceCdRead lsn=%u n=%u -> %08x", lsn, n, buf);
     if (n) ::cdvd::read_sectors(lsn, n, mem::iop_ptr(buf));
     if (n) subs::on_cd_read(lsn, n, buf);
+    if (n) ::cdvd::on_game_read(lsn);
     RET(c, 1);
 }
 void iop_imp_cdvdman_7(IOPContext* c) { RET(c, 1); }   // Seek

@@ -15,6 +15,7 @@ Voraussetzungen
 ---------------
 - Windows 10/11 (64 Bit) mit einer Direct3D-11.3-fähigen Grafikkarte, oder Steam Deck / Linux mit Proton
 - Abbilder von Grandia III (USA), z. B. "Grandia III (USA) (Disc 1).iso" und "(Disc 2).iso"
+- Wahlweise, nur für japanische Stimmen: ein Abbild von Grandia III (Japan) Disc 1
 
 
 Installation
@@ -49,7 +50,8 @@ Steam Deck
   Redump-Namen behalten). Dann findet das Spiel sie selbst - kein Dateidialog, praktisch im Game Mode.
 - Das Deck wird automatisch erkannt: Beim ersten Start gibt es eine echte 16:10-Widescreen-Ansicht,
   Vollbild und große Dialogfenster.
-- Bedienung: Ansicht + Menü = Einstellungsmenü, Ansicht + R1 = Savestate speichern, Ansicht + L1 = laden.
+- Bedienung: Ansicht + Menü = Einstellungsmenü, Ansicht + R1 = Savestate speichern, Ansicht + L1 = laden,
+  Ansicht + R2 (halten) = schneller Vorlauf.
   Einstellungsmenü und Savestate-Meldungen sind auf dem Deck größer; das Menü scrollt.
   "Spiel beenden" am Ende des Einstellungsmenüs schließt das Spiel (mit einer Rückfrage).
 - Auf einem Steam Deck getestet (Proton Experimental): Im Feld läuft das Spiel mit der 60-fps-Option
@@ -71,7 +73,7 @@ F6                Widescreen ein/aus
 F7                Bildrate anzeigen (links oben im Bild)
 F8                HD-Texturen ein/aus (falls ein Texturpaket installiert ist)
 F11, Alt+Enter    Vollbild
-Tab (halten)      Schneller Vorlauf
+Tab / Back+R2     Schneller Vorlauf (halten; vierfach, "»» 4x" in der Ecke)
 
 Tastatur (Standard, im Einstellungsfenster änderbar): Pfeiltasten = Steuerkreuz, Umschalt + Pfeile =
 Rennen, S = Kreuz, D = Kreis, A = Quadrat, W = Dreieck, Q/E = L1/R1, 1/3 = L2/R2, Enter = Start,
@@ -89,16 +91,29 @@ Funktionen
   "Bildschirm"); Menüs und Texte behalten ihr 4:3-Format
 - 60 fps im Feld und (wahlweise) in Kämpfen, bei richtiger Spielgeschwindigkeit; Zwischensequenzen
   laufen wie im Original mit 30 fps (synchron zur Sprache)
-- Savestates (9 Slots) überall, auch im Kampf und in Zwischensequenzen
+- Savestates (9 Slots) überall, auch im Kampf und in Zwischensequenzen. Zusätzlich legt das Spiel ein
+  paar Sekunden nach jedem Kartenwechsel still einen Savestate im Slot "Auto" an (im F1-Menü vor Slot 1
+  "Auto" wählen und mit F9 / Back+L1 laden). Schalter: F1-Menü "Nach Kartenwechsel automatisch"
+  (grandia3.ini: autosave_state).
 - Zwischensequenzen und Filme mit START überspringen
 - Große Dialogfenster (1,25-fach samt Schrift) für kleine Bildschirme, auf dem Steam Deck automatisch
   (braucht die Widescreen-Ansicht)
 - Scharfe Schrift bei hoher Auflösung, Nachschärfen, Bildfilter
+- Größeres Einstellungsmenü: F1-Menü, System, "Größe dieses Menüs" (100 bis 200 %; ein größeres Menü
+  scrollt)
 - Getrennte Lautstärke für Musik, Sprache, Effekte und Filme
-- Untertitel für vertonte Zwischensequenzen und Filme ohne Textfenster (experimentell, vorerst
-  englisch): fast das ganze Spiel samt Ende; es fehlen nur noch wenige kurze Zeilen.
+- Untertitel für vertonte Zwischensequenzen und Filme ohne Textfenster (experimentell; deutsch,
+  englisch oder französisch je nach Spielsprache): das ganze Spiel samt Ende.
   Schalter: F1-Menü "Untertitel in Zwischensequenzen" (grandia3.ini: subtitles).
   Fehler wie falsches Timing oder falsche/fehlende Zeilen bitte melden.
+- In Ruhe erkunden: F1-Menü "Kämpfe bei Gegnerkontakt" aus = Gegner auf dem Feld zu berühren startet
+  keinen Kampf (Story- und Bosskämpfe finden trotzdem statt). grandia3.ini: contact_battles.
+- Japanische Stimmen: Mit einem Abbild deiner eigenen Grandia III (Japan) Disc 1 laufen
+  Zwischensequenzen, Kampfrufe und Filme mit den japanischen Originalstimmen (Texte und Untertitel
+  bleiben in deiner Sprache). Das Abbild als "disc1_jp.iso" oder mit seinem Redump-Namen
+  "Grandia III (Japan) (Disc 1).iso" neben das Spiel oder die US-ISO legen (oder in grandia3.ini:
+  iso_path_jp), dann im F1-Menü "Japanische Stimmen" einschalten und das Spiel neu starten. Gilt
+  auch für Disc 2, nur deren Filme bleiben englisch. Die japanische Disc wird nur gelesen.
 - HD-Texturpakete: Bilder im Ordner "textures" neben dem Programm ersetzen die Texturen des Spiels
   (nicht in diesem Archiv). Ein inoffizielles 4x-Paket (7,5 GB, zwei Teile - beide neben die exe
   entpacken):

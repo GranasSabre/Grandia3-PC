@@ -41,7 +41,11 @@ struct Config {
     bool movie_skip = true;         // START/SELECT skip every movie (patch 3)
     bool cutscene_skip = true;      // START skips in-engine cutscenes (fast invisible run)
     bool subtitles = true;          // subtitles for voiced cutscenes (lang\sub_<language>.tsv)
-    int state_slot = 1;             // savestate slot for F5 (save) / F9 (load), 1..9
+    bool contact_battles = true;    // touching a monster in the field starts a battle (off: walk past them)
+    bool jp_voices = false;         // Japanese voices from the player's Japanese disc 1 (from the next start)
+    int state_slot = 1;             // savestate slot for F5 (save) / F9 (load), 1..9 (0 = Auto: load only)
+    bool autosave_state = true;     // savestate into slot Auto (0) a few seconds after every map change
+    int menu_size = 100;            // size of the F1 menu in percent (100..200; larger: it scrolls)
     int sharpen = 60;               // contrast adaptive sharpening of the output, 0 = off .. 100 (F4 toggles)
     bool show_fps = false;
     bool integer_scaling = false;
@@ -58,6 +62,7 @@ struct Config {
     bool console = false;
     std::string iso_path;   // disc images of the player's own copy (UTF-8): disc 1, disc 2
     std::string iso_path2;
+    std::string iso_path_jp;  // Grandia III (Japan) disc 1, for the option jp_voices
     std::string save_dir;
     // input: virtual-key codes for PS2 buttons
     int keymap[16];
@@ -87,6 +92,7 @@ void init_console(bool enable);
 bool console_enabled();
 void fatal_message(const char* msg);
 std::string choose_disc_image(int disc);  // first start: file dialog for the player's disc image (UTF-8 path, "" = cancelled)
+std::string choose_jp_image();            // option jp_voices: file dialog for the Japanese disc 1 image
 void message(const wchar_t* text);        // information box
 
 // Video
@@ -137,6 +143,7 @@ void open_settings(HWND__* parent);
 bool overlay_open();
 // cutscene skip: START during a cutscene runs it invisibly at high speed until it ends
 bool skip_active();
+bool fast_forward();  // Tab or Back+RT held (not saved in the settings, unlike frame_limit)
 int skip_session();  // counts skip starts
 void skip_stop(const char* why);
 // short note at the top of the picture (savestates), any thread
@@ -147,6 +154,7 @@ bool overlay_handle_key(int vk);      // window thread, key down while the menu 
 void overlay_poll_controller();       // window thread, every loop iteration
 // panel pixels (BGRA) for a target height; false when closed. Copies only when version changed.
 bool overlay_pixels(int target_h, std::vector<u32>& out, int& w, int& h, u64& version);
+void overlay_set_target_w(int w);  // window width: the F1 menu is never wider
 bool fps_pixels(int target_h, int fps, std::vector<u32>& out, int& w, int& h, u64& version);  // frame rate label
 HWND__* main_hwnd();
 bool settings_open();

@@ -107,7 +107,7 @@ SPECS = {
              font='bahnschrift.ttf', var=b'SemiBold', fill=((250, 250, 255), (230, 235, 245)), line=((40, 50, 90), 1)),
         dict(bg='inpaint', keep='light', box=(125, 146, 226, 163), clear_rows=(146, 156), text='Spezialstufe', x=129, cap=(147, 160), w=95,
              font='bahnschrift.ttf', var=b'SemiBold', fill=((250, 250, 255), (230, 235, 245)), line=((40, 50, 90), 1)),
-        dict(bg='clear', box=(0, 174, 162, 206), text='ERGEBNIS', x=5, cap=(180, 205), w=152, font='georgiab.ttf',
+        dict(bg='clear', box=(0, 174, 162, 206), refill=(206, 220, 20), text='ERGEBNIS', x=5, cap=(180, 205), w=152, font='georgiab.ttf',
              fill=((250, 245, 150), (200, 160, 40)), shadow=(3, 2, (80, 50, 20))),
     ],
     # sys_parts_ipmark00 (GR3.MDT): IP gauge marks
@@ -372,6 +372,26 @@ def main():
                 a = np.array(img)
                 x0, y0, x1, y1 = [v * k for v in s['box']]
                 a[y0:y1, x0:x1] = 0
+                if 'refill' in s:
+                    # the old word reaches down into a plate below the box: rebuild those rows from a
+                    # clean column of the plate, over the plate's extent in the original
+                    # (blended towards the plate's own colour right of the box where the plate goes on)
+                    r0, r1, col = s['refill']
+                    o = np.array(orig)
+                    x1o = s['box'][2]
+                    for y in range(r0, r1):
+                        xs = np.nonzero(o[y, :x1o, 3] > 128)[0]
+                        if not len(xs): continue
+                        fa, fb = (xs[0] + 2) * k, (xs[-1] + 1) * k
+                        right = o[y, x1o, 3] > 128
+                        for sy in range(y * k, (y + 1) * k):
+                            c0 = a[sy, col * k + k // 2].astype(np.float32)
+                            if right:
+                                c1 = a[sy, fb + k // 2].astype(np.float32)
+                                t = np.linspace(0, 1, fb - fa, dtype=np.float32)[:, None]
+                                a[sy, fa:fb] = (c0 * (1 - t) + c1 * t + 0.5).astype(np.uint8)
+                            else:
+                                a[sy, fa:fb] = c0.astype(np.uint8)
                 img = Image.fromarray(a, 'RGBA')
             img = draw_label(img, s, k)
         img.save(os.path.join(out, key + '.png'))

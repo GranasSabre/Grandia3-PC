@@ -138,6 +138,7 @@ static bool file_exists_u8(const std::string& p) {  // UTF-8 path (chosen in a f
 }
 
 static bool g_trace_syscalls_flag = false;
+static bool g_verify_redirects_flag = false;  // --verify-redirects: check the files read from a second image, then quit
 bool gs_log_draws_flag = false;
 namespace kernel { extern bool g_dispatch_log; }
 namespace gs { extern bool g_gs_null; extern int g_gs_threads; extern double g_draw_stats_at; extern double g_log_draws_from; extern bool g_log_draws; extern double g_vram_dump_at; extern std::string g_vram_dump_path; }
@@ -202,6 +203,7 @@ int main(int argc, char** argv) {
         else if (a == "--perf=raster") { kernel::g_native_perf = true; extern int perf_target_raster(); perf_target_raster(); }
         else if (a == "--watch-msg") texthook::g_watch_msg = true;
         else if (a == "--steamdeck") platform::g_force_steam_deck = true;
+        else if (a == "--verify-redirects") g_verify_redirects_flag = true;
         else if (a.rfind("--watch-mem=", 0) == 0) {
             // SEC:[*PTR+]OFF:LEN (hex addresses)
             namespace k = kernel;
@@ -345,6 +347,47 @@ int main(int argc, char** argv) {
         platform::message(t);
         iso.clear();
     }
+    // option jp_voices: cutscene voices, battle shouts and the movies' sound from the player's own
+    // Japanese disc 1 (the voice archive is the same for both discs; the movies' pictures are identical
+    // except the title movie GRM01; the Japanese disc 2 movies are not used)
+    {
+        std::string jp = cfg.iso_path_jp;
+        if (jp.empty() || !file_exists_u8(jp)) {
+            jp.clear();
+            std::string isodir = iso.empty() ? dir : iso.substr(0, iso.find_last_of("\\/"));
+            for (const std::string& d : {dir, isodir})
+                for (const std::string& cand : {d + "\\disc1_jp.iso", d + "\\Grandia III (Japan) (Disc 1).iso"})
+                    if (jp.empty() && file_exists_u8(cand)) jp = cand;
+        }
+        if (cfg.jp_voices && jp.empty()) jp = platform::choose_jp_image();
+        if (cfg.jp_voices) {
+            int n = jp.empty() ? -1 : cdvd::add_image_files(jp, "\\SLPM_659.76", [](const std::string& f) {
+                // cutscene voices: the voice archive and its index; battle shouts: the sound banks (their
+                // other sounds are the same apart from small parameter changes); movies: their sound
+                if (f == "\\MUSIC\\GR3_STR.STZ" || f == "\\MUSIC\\GR3_STR.IDX" || f == "\\MUSIC\\GR3.IDX") return true;
+                if (f.rfind("\\MUSIC\\", 0) == 0 && f.size() > 3 && f.compare(f.size() - 3, 3, ".SE") == 0) return true;
+                return f.rfind("\\MOVIE\\GRM", 0) == 0 && f != "\\MOVIE\\GRM01.MOV";
+            });
+            log_write(LOG_MAIN, "Japanese voices: %s (%d files)", jp.empty() ? "no image chosen" : jp.c_str(), n);
+            if (n > 0 && jp != cfg.iso_path_jp) {
+                cfg.iso_path_jp = jp;  // found next to the game or chosen: remembered
+                platform::save_config();
+            }
+            if (n <= 0) {
+                // switched off again, so the next start does not ask once more
+                cfg.jp_voices = false;
+                platform::save_config();
+                platform::show_notice(platform::tr(L"Japanische Stimmen aus"),
+                                      platform::tr(n == -2 ? L"Das gewählte Abbild ist nicht Grandia III (Japan) Disc 1."
+                                                           : L"Kein Abbild der japanischen Disc 1 gewählt."), 8.0);
+            }
+        } else if (!jp.empty()) {
+            // English voices, but savestates of a session with Japanese voices can be loaded: the image's
+            // index tables are only noted (no file is read from it)
+            cdvd::add_image_files(jp, "\\SLPM_659.76", [](const std::string&) { return false; });
+        }
+    }
+    if (g_verify_redirects_flag) return cdvd::verify_redirects() ? 1 : 0;
     mem::init();
     subs::init();
     platform::apply_patches();

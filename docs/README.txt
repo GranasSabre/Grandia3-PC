@@ -15,6 +15,7 @@ Requirements
 ------------
 - Windows 10/11 (64 bit) with a Direct3D 11.3 capable graphics card, or a Steam Deck / Linux with Proton
 - Grandia III (USA) disc images (Redump dumps: "Grandia III (USA) (Disc 1).iso" and "(Disc 2).iso")
+- Optional, only for Japanese voices: an image of Grandia III (Japan) disc 1
 - About 40 MB for the program; the ISOs stay where they are
 
 
@@ -42,7 +43,8 @@ Steam Deck
   names). Then the game finds them by itself - no file dialog, which is handy in Game Mode.
 - The Deck is detected automatically: on the first start the game uses a real 16:10 widescreen view,
   full screen and large dialogue windows.
-- Controls: View + Menu = settings menu, View + R1 = save a savestate, View + L1 = load it.
+- Controls: View + Menu = settings menu, View + R1 = save a savestate, View + L1 = load it,
+  View + R2 (hold) = fast forward.
   The settings menu and the savestate notes are drawn larger on the Deck; the menu scrolls.
   "Quit game" at the end of the settings menu closes the game (it asks once more).
 - Tested on a Steam Deck (Proton Experimental): the field runs at 60 fps with the 60 fps option,
@@ -64,7 +66,7 @@ F6                widescreen on/off
 F7                show the frame rate (top left of the picture)
 F8                HD textures on/off (if a texture pack is installed)
 F11, Alt+Enter    full screen
-Tab (hold)        fast forward
+Tab / Back+R2     fast forward (hold; 4 times as fast, "»» 4x" in the corner)
 
 Keyboard (default, changeable in the settings): arrow keys = d-pad, Shift + arrows = run,
 S = Cross, D = Circle, A = Square, W = Triangle, Q/E = L1/R1, 1/3 = L2/R2, Enter = Start,
@@ -83,15 +85,27 @@ Features
 - 60 fps in the field and (optionally) in battles, with correct game speed; a scene that cannot hold
   60 fps falls back to 30 by itself; in-engine cutscenes run at 30 like the original (in sync with
   their voices)
-- Savestates (9 slots) everywhere, also in battles and cutscenes
+- Savestates (9 slots) everywhere, also in battles and cutscenes. In addition the game quietly saves a
+  savestate into the slot "Auto" a few seconds after every map change (choose "Auto" in front of slot
+  1 in the F1 menu and load it with F9 / Back+L1). Switch: F1 menu "Automatically after a map change"
+  (grandia3.ini: autosave_state).
 - Skip cutscenes and movies with START
 - Large dialogue windows (1.25x, text included) for small screens - automatic on the Steam Deck
   (needs the widescreen view)
 - Sharp text at high resolutions, contrast adaptive sharpening, image filters
+- Larger settings menu: F1 menu, System, "Size of this menu" (100 to 200 %; a larger menu scrolls)
 - Separate volume for music, voices, effects and movies
-- Subtitles for voiced cutscenes and movies without a text box (experimental, English): nearly the
-  whole game is covered, the ending included; only a few short lines are still missing.
+- Subtitles for voiced cutscenes and movies without a text box (experimental; English, German or
+  French, following the game language): the whole game is covered, the ending included.
   Switch: F1 menu "Subtitles in cutscenes". Please report wrong timing or wrong/missing lines.
+- Explore in peace: F1 menu "Battles on monster contact" off = touching a monster in the field starts
+  no battle (story and boss battles still happen). grandia3.ini: contact_battles.
+- Japanese voices: with an image of your own Grandia III (Japan) disc 1, cutscenes, battle shouts and
+  movies play with the original Japanese voices (text and subtitles stay in your language). Put the
+  image next to the game or the US ISO as "disc1_jp.iso" or with its Redump name
+  "Grandia III (Japan) (Disc 1).iso" (or set iso_path_jp in grandia3.ini), switch on "Japanese voices"
+  in the F1 menu and restart the game. Works on disc 2 as well; only its movies keep their English
+  sound. The Japanese disc is only read.
 - Language: the original English text, German or French (complete fan translations, French is new
   and has seen little play testing so far). More languages can be added as lang\<code>.tsv files.
 - HD texture packs: images in a folder "textures" next to the program replace the game's textures
@@ -114,6 +128,8 @@ Some of them:
   gs_thread = 1          3D geometry on a processor core of its own (faster)
   subtitles = 1          subtitles in cutscenes (lang\sub_en.tsv)
   camera_invert_x = 0    1 = right stick left/right reversed (camera turns the other way)
+  jp_voices = 0          1 = Japanese voices (needs the Japanese disc 1 image, see Features)
+  menu_size = 100        size of the F1 menu in percent (100 .. 200; F1 menu "Size of this menu")
 
 
 Problems?

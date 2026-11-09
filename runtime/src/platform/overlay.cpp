@@ -46,6 +46,7 @@ std::wstring g_note;
 std::mutex g_mu;
 std::vector<u32> g_px;
 int g_w = 0, g_h = 0, g_target_h = 0;
+std::atomic<int> g_target_w{0};  // the window width (the menu may not be wider)
 u64 g_version = 1, g_drawn = 0;
 
 std::wstring onoff(bool b) { return b ? L"An" : L"Aus"; }
@@ -102,6 +103,8 @@ void build_items() {
     g_items.push_back({L"60 fps auch in Kämpfen (experimentell)", [&c] { return onoff(c.fps60_battle); }, toggle(c.fps60_battle)});
     g_items.push_back({L"Zwischensequenzen mit START überspringen", [&c] { return onoff(c.cutscene_skip); }, toggle(c.cutscene_skip)});
     g_items.push_back({L"Untertitel in Zwischensequenzen", [&c] { return onoff(c.subtitles); }, toggle(c.subtitles)});
+    g_items.push_back({L"Kämpfe bei Gegnerkontakt", [&c] { return onoff(c.contact_battles); }, toggle(c.contact_battles)});
+    g_items.push_back({L"Japanische Stimmen (ab Neustart)", [&c] { return onoff(c.jp_voices); }, toggle(c.jp_voices)});
     g_items.push_back({L"Filme mit START überspringen", [&c] { return onoff(c.movie_skip); },
                        toggle(c.movie_skip, [&c] { g_ee_patch[3] = c.movie_skip; })});
     g_items.push_back({L"Nachschärfen", [&c] { return c.sharpen ? std::to_wstring(c.sharpen) : std::wstring(L"Aus"); },
@@ -146,6 +149,8 @@ void build_items() {
                            c.language = l[(i + (dir < 0 ? l.size() - 1 : 1)) % l.size()];
                            g_note = L"Die Spieltexte wechseln beim nächsten Start.";
                        }});
+    g_items.push_back({L"Größe dieses Menüs", [&c] { return std::to_wstring(clampi(c.menu_size, 100, 200)) + L" %"; },
+                       [&c](int dir) { c.menu_size = clampi(c.menu_size, 100, 200) + (dir < 0 ? -25 : 25); if (c.menu_size > 200) c.menu_size = 100; if (c.menu_size < 100) c.menu_size = 200; }});
     g_items.push_back({L"Disc wechseln (Neustart)", [&c] {
                            if (g_disc_confirm) return std::wstring(L"Nochmal bestätigen!");
                            return std::wstring(c.disc == 2 ? L"Disc 2 → Disc 1" : L"Disc 1 → Disc 2");
@@ -160,12 +165,13 @@ void build_items() {
     g_items.push_back({nullptr, [] { return std::wstring(L"Savestates (Spielstand an jeder Stelle)"); }, nullptr, true});
     g_items.push_back({L"Slot", [&c] {
                            std::string when;
-                           std::wstring v = std::to_wstring(c.state_slot);
+                           std::wstring v = ss::slot_label(c.state_slot);
                            if (ss::slot_exists(c.state_slot, &when)) v += L"  (" + std::wstring(when.begin(), when.end()) + L")";
                            else v += tr(L"  (leer)");
                            return v;
                        },
-                       [&c](int dir) { c.state_slot = (c.state_slot - 1 + (dir < 0 ? 8 : 1)) % 9 + 1; }});
+                       // 0 = Auto (written after map changes), 1..9
+                       [&c](int dir) { c.state_slot = (c.state_slot + (dir < 0 ? 9 : 1)) % 10; }});
     g_items.push_back({L"Savestate speichern (F5, Back+R1)", [] { return std::wstring(L"speichern"); }, [&c](int dir) {
                            if (dir != 0) return;
                            overlay_set_open(false);
@@ -176,6 +182,7 @@ void build_items() {
                            overlay_set_open(false);
                            ss::request_load(c.state_slot);
                        }});
+    g_items.push_back({L"Nach Kartenwechsel automatisch (Slot Auto)", [&c] { return onoff(c.autosave_state); }, toggle(c.autosave_state)});
     g_items.push_back({L"Tasten-/Controllerbelegung …", [] { return std::wstring(L"öffnen"); }, [](int dir) {
                            if (dir != 0) return;
                            overlay_set_open(false);
@@ -203,10 +210,13 @@ void render_locked() {
     const int BASE_W = 760, ROW = 30, TOP = 74, BOTTOM = 70;
     int base_h = TOP + rows * ROW + BOTTOM;
     // all rows at once where they stay readable; otherwise (small screens, the Steam Deck: rows of
-    // about 40 pixels at 800) the list scrolls with the selection
+    // about 40 pixels at 800, or a larger menu size) the list scrolls with the selection
     double s = g_target_h > 0 ? (double)g_target_h / base_h : 1.0;
     if (g_target_h > 0 && is_steam_deck()) s = std::max(s, g_target_h / 800.0 * 1.33);
     if (s < 0.6) s = 0.6;
+    s *= clampi(config().menu_size, 100, 200) / 100.0;           // option "Menügröße"
+    if (g_target_w > 0) s = std::min(s, (double)g_target_w / BASE_W);  // never wider than the window
+    if (g_target_h > 0) s = std::min(s, (double)g_target_h / (TOP + 5 * ROW + BOTTOM));  // five rows at least
     int vis = rows;
     if (g_target_h > 0 && base_h * s > g_target_h) vis = std::max(5, (int)((g_target_h / s - TOP - BOTTOM) / ROW));
     vis = std::min(vis, rows);
@@ -557,10 +567,11 @@ bool fps_pixels(int target_h, int fps, std::vector<u32>& out, int& w, int& h, u6
         SetBkMode(dc, TRANSPARENT);
         HFONT f = CreateFontW(-(int)(24 * s), 0, 0, 0, FW_SEMIBOLD, 0, 0, 0, DEFAULT_CHARSET, 0, 0, CLEARTYPE_QUALITY, 0, L"Segoe UI");
         SelectObject(dc, f);
-        // green at the target rate, yellow a bit below, red when clearly slower
-        SetTextColor(dc, fps >= 57 || (fps >= 28 && fps <= 31) ? RGB(130, 230, 140) : fps >= 45 ? RGB(240, 210, 110) : RGB(240, 120, 110));
+        // green at the target rate, yellow a bit below, red when clearly slower; fps < 0: fast forward
+        SetTextColor(dc, fps < 0 ? RGB(120, 200, 255) : fps >= 57 || (fps >= 28 && fps <= 31) ? RGB(130, 230, 140) : fps >= 45 ? RGB(240, 210, 110) : RGB(240, 120, 110));
         wchar_t t[32];
-        swprintf(t, 32, L"%d FPS", fps);
+        if (fps < 0) swprintf(t, 32, L"»» 4x");
+        else swprintf(t, 32, L"%d FPS", fps);
         RECT r{0, 0, W, H};
         DrawTextW(dc, t, -1, &r, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
         GdiFlush();
@@ -584,14 +595,18 @@ bool fps_pixels(int target_h, int fps, std::vector<u32>& out, int& w, int& h, u6
     return true;
 }
 
+void overlay_set_target_w(int w) { g_target_w = w; }
+
 bool overlay_pixels(int target_h, std::vector<u32>& out, int& w, int& h, u64& version) {
     if (!overlay_open()) {
         if (skip_active()) return skip_banner(target_h, out, w, h, version);
         return notice_active() && notice_banner(target_h, out, w, h, version);
     }
     std::lock_guard<std::mutex> lk(g_mu);
-    if (target_h != g_target_h || g_drawn != g_version) {
+    static int drawn_w = 0;
+    if (target_h != g_target_h || g_drawn != g_version || g_target_w != drawn_w) {
         g_target_h = target_h;
+        drawn_w = g_target_w;
         render_locked();
         g_drawn = g_version;
     }

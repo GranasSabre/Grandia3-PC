@@ -113,9 +113,12 @@ private:
 };
 
 // Requests from the user interface; carried out by the emulation thread at the next safe point.
+constexpr int AUTO_SLOT = 0;  // written by itself after every map change (option autosave_state)
 void request_save(int slot);
+bool request_auto_save();      // quiet save into AUTO_SLOT; false: another request or a write is running
 void request_load(int slot);
 std::string slot_path(int slot);
+std::wstring slot_label(int slot);  // "Auto" or the number
 bool slot_exists(int slot, std::string* when = nullptr);  // when: "20.10.2026 16:05"
 
 // Kernel side (emulation thread): at a safe point the kernel saves (every thread at a resume point)
