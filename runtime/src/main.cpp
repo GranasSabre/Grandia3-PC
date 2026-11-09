@@ -368,7 +368,7 @@ int main(int argc, char** argv) {
                 if (f.rfind("\\MUSIC\\", 0) == 0 && f.size() > 3 && f.compare(f.size() - 3, 3, ".SE") == 0) return true;
                 return f.rfind("\\MOVIE\\GRM", 0) == 0 && f != "\\MOVIE\\GRM01.MOV";
             });
-            log_write(LOG_MAIN, "Japanese voices: %s (%d files)", jp.empty() ? "no image chosen" : jp.c_str(), n);
+            log_write(LOG_MAIN, "Undub (Japanese voices): %s (%d files)", jp.empty() ? "no image chosen" : jp.c_str(), n);
             if (n > 0 && jp != cfg.iso_path_jp) {
                 cfg.iso_path_jp = jp;  // found next to the game or chosen: remembered
                 platform::save_config();
@@ -377,7 +377,7 @@ int main(int argc, char** argv) {
                 // switched off again, so the next start does not ask once more
                 cfg.jp_voices = false;
                 platform::save_config();
-                platform::show_notice(platform::tr(L"Japanische Stimmen aus"),
+                platform::show_notice(platform::tr(L"Undub aus"),
                                       platform::tr(n == -2 ? L"Das gewählte Abbild ist nicht Grandia III (Japan) Disc 1."
                                                            : L"Kein Abbild der japanischen Disc 1 gewählt."), 8.0);
             }

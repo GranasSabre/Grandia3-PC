@@ -15,7 +15,7 @@ Voraussetzungen
 ---------------
 - Windows 10/11 (64 Bit) mit einer Direct3D-11.3-fähigen Grafikkarte, oder Steam Deck / Linux mit Proton
 - Abbilder von Grandia III (USA), z. B. "Grandia III (USA) (Disc 1).iso" und "(Disc 2).iso"
-- Wahlweise, nur für japanische Stimmen: ein Abbild von Grandia III (Japan) Disc 1
+- Wahlweise, nur für den Undub (japanische Stimmen): ein Abbild von Grandia III (Japan) Disc 1
 
 
 Installation
@@ -108,11 +108,11 @@ Funktionen
   Fehler wie falsches Timing oder falsche/fehlende Zeilen bitte melden.
 - In Ruhe erkunden: F1-Menü "Kämpfe bei Gegnerkontakt" aus = Gegner auf dem Feld zu berühren startet
   keinen Kampf (Story- und Bosskämpfe finden trotzdem statt). grandia3.ini: contact_battles.
-- Japanische Stimmen: Mit einem Abbild deiner eigenen Grandia III (Japan) Disc 1 laufen
+- Undub (japanische Stimmen): Mit einem Abbild deiner eigenen Grandia III (Japan) Disc 1 laufen
   Zwischensequenzen, Kampfrufe und Filme mit den japanischen Originalstimmen (Texte und Untertitel
   bleiben in deiner Sprache). Das Abbild als "disc1_jp.iso" oder mit seinem Redump-Namen
   "Grandia III (Japan) (Disc 1).iso" neben das Spiel oder die US-ISO legen (oder in grandia3.ini:
-  iso_path_jp), dann im F1-Menü "Japanische Stimmen" einschalten und das Spiel neu starten. Gilt
+  iso_path_jp), dann im F1-Menü "Undub" einschalten und das Spiel neu starten. Gilt
   auch für Disc 2, nur deren Filme bleiben englisch. Die japanische Disc wird nur gelesen.
 - HD-Texturpakete: Bilder im Ordner "textures" neben dem Programm ersetzen die Texturen des Spiels
   (nicht in diesem Archiv). Ein inoffizielles 4x-Paket (7,5 GB, zwei Teile - beide neben die exe

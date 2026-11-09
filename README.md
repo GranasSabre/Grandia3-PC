@@ -1,8 +1,8 @@
 # Grandia III for PC
 
 **Grandia III** (PlayStation 2, 2005) as a real PC game: sharper, wider and smoother than on the
-console, with savestates, subtitles and a German and French translation - and, if you like, with the
-original Japanese voices.
+console, with savestates, subtitles and a German and French translation - and, if you like, as an
+undub with the original Japanese voices.
 
 This is not an emulator. The game's program was translated into PC code once, ahead of time, so the game
 runs on your PC like any other PC game.
@@ -53,8 +53,8 @@ Everything about keys, settings and options: [docs/README.txt](docs/README.txt)
 - The original English text, or complete German and French fan translations
 - Subtitles for all voiced cutscenes and movies, in English, German or French (these scenes have no
   text in the original)
-- **Japanese voices:** with an image of your own *Grandia III (Japan)* disc 1, cutscenes, battle shouts
-  and movies play with the original Japanese voices, while text and subtitles stay in your language
+- **Undub:** with an image of your own *Grandia III (Japan)* disc 1, cutscenes, battle shouts and
+  movies play with the original Japanese voices, while text and subtitles stay in your language
 - Separate volume for music, voices, effects and movies
 
 **Controls**
@@ -68,11 +68,11 @@ Everything about keys, settings and options: [docs/README.txt](docs/README.txt)
   View + R2 = fast forward
 - Add `Grandia3.exe` to Steam as a non-Steam game and choose Proton in its compatibility settings
 
-## Japanese voices
+## Undub (Japanese voices)
 
 Put the image of your Japanese disc 1 next to the game or next to your US image, named
-`disc1_jp.iso` or `Grandia III (Japan) (Disc 1).iso`. Then switch on *Japanese voices* in the F1 menu
-and restart the game. If the image is not found, the game asks for it once. The Japanese disc covers
+`disc1_jp.iso` or `Grandia III (Japan) (Disc 1).iso`. Then switch on *Undub* in the F1 menu and
+restart the game. If the image is not found, the game asks for it once. The Japanese disc covers
 disc 2 as well; only the disc 2 movies keep their English sound.
 
 ## HD texture pack (optional)

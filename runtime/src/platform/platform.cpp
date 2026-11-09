@@ -127,7 +127,7 @@ std::string choose_disc_image(int disc) {
     return choose_image(title);
 }
 
-std::string choose_jp_image() { return choose_image(tr(L"Japanische Stimmen: Abbild von Grandia III (Japan) Disc 1 wählen (ISO)")); }
+std::string choose_jp_image() { return choose_image(tr(L"Undub: Abbild von Grandia III (Japan) Disc 1 wählen (ISO)")); }
 
 static std::string choose_image(const wchar_t* title) {
     wchar_t file[MAX_PATH * 4] = L"";
@@ -286,7 +286,7 @@ void save_config() {
     fprintf(f, "; START skips cutscenes (they run invisibly at high speed until they end)\ncutscene_skip = %d\n", g_cfg.cutscene_skip);
     fprintf(f, "; subtitles for voiced cutscenes (lang\\sub_<language>.tsv)\nsubtitles = %d\n", g_cfg.subtitles);
     fprintf(f, "; 0 = touching a monster in the field starts no battle (story battles still happen)\ncontact_battles = %d\n", g_cfg.contact_battles);
-    fprintf(f, "; Japanese voices (cutscenes, battles, movies) from your own Grandia III (Japan) disc 1 image:\n"
+    fprintf(f, "; Undub: Japanese voices (cutscenes, battles, movies) from your own Grandia III (Japan) disc 1 image:\n"
                "; iso_path_jp in [Paths], or disc1_jp.iso / \"Grandia III (Japan) (Disc 1).iso\" next to the game or the US image\n"
                "jp_voices = %d\n", g_cfg.jp_voices);
     fprintf(f, "; savestate slot used by F5 (save) and F9 (load); 0 = Auto (load only)\nstate_slot = %d\n", g_cfg.state_slot);

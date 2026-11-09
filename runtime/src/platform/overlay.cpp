@@ -104,7 +104,7 @@ void build_items() {
     g_items.push_back({L"Zwischensequenzen mit START überspringen", [&c] { return onoff(c.cutscene_skip); }, toggle(c.cutscene_skip)});
     g_items.push_back({L"Untertitel in Zwischensequenzen", [&c] { return onoff(c.subtitles); }, toggle(c.subtitles)});
     g_items.push_back({L"Kämpfe bei Gegnerkontakt", [&c] { return onoff(c.contact_battles); }, toggle(c.contact_battles)});
-    g_items.push_back({L"Japanische Stimmen (ab Neustart)", [&c] { return onoff(c.jp_voices); }, toggle(c.jp_voices)});
+    g_items.push_back({L"Undub: japanische Stimmen (ab Neustart)", [&c] { return onoff(c.jp_voices); }, toggle(c.jp_voices)});
     g_items.push_back({L"Filme mit START überspringen", [&c] { return onoff(c.movie_skip); },
                        toggle(c.movie_skip, [&c] { g_ee_patch[3] = c.movie_skip; })});
     g_items.push_back({L"Nachschärfen", [&c] { return c.sharpen ? std::to_wstring(c.sharpen) : std::wstring(L"Aus"); },
